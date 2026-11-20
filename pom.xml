@@ -21,6 +21,7 @@
         <!-- mock-webhook first: scanner-app's integration tests run its image. -->
         <module>mock-webhook</module>
         <module>scanner-app</module>
+        <module>chaos</module>
     </modules>
 
     <properties>

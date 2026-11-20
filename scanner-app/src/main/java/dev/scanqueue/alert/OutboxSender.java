@@ -188,7 +188,7 @@ public class OutboxSender {
     public int reapExpiredLeases(int batchSize) {
         List<String> kinds = jdbc.queryForList("""
                 WITH expired AS (
-                    SELECT id, lease_owner FROM alert_outbox
+                    SELECT id, lease_owner, lease_expires_at FROM alert_outbox
                     WHERE status = 'SENDING' AND lease_expires_at < now()
                     ORDER BY lease_expires_at
                     LIMIT ?
@@ -202,12 +202,12 @@ public class OutboxSender {
                         lease_expires_at = NULL
                     FROM expired
                     WHERE o.id = expired.id
-                    RETURNING o.job_id, o.attempts, o.status, expired.lease_owner
+                    RETURNING o.job_id, o.attempts, o.status, expired.lease_owner, expired.lease_expires_at
                 )
-                INSERT INTO queue_event (kind, job_id, claim_token, worker_id, detail)
-                SELECT 'ALERT_LEASE_EXPIRED', job_id, attempts, lease_owner, 'returned as ' || status FROM upd
+                INSERT INTO queue_event (kind, job_id, claim_token, worker_id, detail, lease_expires_at)
+                SELECT 'ALERT_LEASE_EXPIRED', job_id, attempts, lease_owner, 'returned as ' || status, lease_expires_at FROM upd
                 UNION ALL
-                SELECT 'ALERT_DEAD', job_id, attempts, lease_owner, 'lease expired on final attempt'
+                SELECT 'ALERT_DEAD', job_id, attempts, lease_owner, 'lease expired on final attempt', lease_expires_at
                 FROM upd WHERE status = 'DEAD'
                 RETURNING kind
                 """, String.class, batchSize);

@@ -173,7 +173,7 @@ public class JobQueue {
     public int reapExpiredLeases(int batchSize) {
         List<String> kinds = jdbc.queryForList("""
                 WITH expired AS (
-                    SELECT id, lease_owner FROM scan_job
+                    SELECT id, lease_owner, lease_expires_at FROM scan_job
                     WHERE status = 'RUNNING' AND lease_expires_at < now()
                     ORDER BY lease_expires_at
                     LIMIT ?
@@ -188,12 +188,12 @@ public class JobQueue {
                         finished_at      = CASE WHEN j.attempts >= j.max_attempts THEN now() END
                     FROM expired
                     WHERE j.id = expired.id
-                    RETURNING j.id, j.attempts, j.status, expired.lease_owner
+                    RETURNING j.id, j.attempts, j.status, expired.lease_owner, expired.lease_expires_at
                 )
-                INSERT INTO queue_event (kind, job_id, claim_token, worker_id, detail)
-                SELECT 'LEASE_EXPIRED', id, attempts, lease_owner, 'returned as ' || status FROM upd
+                INSERT INTO queue_event (kind, job_id, claim_token, worker_id, detail, lease_expires_at)
+                SELECT 'LEASE_EXPIRED', id, attempts, lease_owner, 'returned as ' || status, lease_expires_at FROM upd
                 UNION ALL
-                SELECT 'DEAD_LETTERED', id, attempts, lease_owner, 'lease expired on final attempt'
+                SELECT 'DEAD_LETTERED', id, attempts, lease_owner, 'lease expired on final attempt', lease_expires_at
                 FROM upd WHERE status = 'DEAD'
                 RETURNING kind
                 """, String.class, batchSize);

@@ -62,6 +62,33 @@ expire (up to 15 s plus up to 1 s for the reaper) instead of happening as soon a
 the connection drops. That is bounded and configurable, and alerts are still
 never lost or processed twice.
 
+## Chaos test method
+
+- **Targeted kills, not random ones.** Killing an idle worker proves nothing.
+  The harness reads Postgres and kills a worker only while it holds a live job
+  lease, and kills the sender only while an alert is `SENDING`. The lease
+  snapshot and the DB-clock timestamp come from the same query, right before
+  `docker kill -s KILL`.
+- **Observed vs confirmed.** "Observed" means a live lease was in the snapshot.
+  Because `docker kill` through the Windows CLI takes about 100–300 ms, the item
+  can finish in between. "Confirmed" means a lease the killed process held later
+  expired, so the kill really interrupted work. The report shows both.
+- **Restarted containers keep their hostname**, so a dead process's unexpired
+  leases carry the same owner prefix as its replacement. The first version of
+  the harness counted those as "held" and once froze a still-booting JVM
+  instead of a real lease holder. It now counts a lease only if it was set
+  after the container's last restart, and attributes expiries using the
+  `lease_expires_at` stored on each expiry event.
+- **Zombies need a pause, not a kill.** A process killed with `kill -9` never
+  writes again, so it cannot test fencing. `docker pause` (the cgroup freezer)
+  stalls a lease holder past its lease, the way a long GC pause or VM stall
+  would. On unpause it resumes mid-scan and writes, and that write must be
+  fenced out.
+- **Ground truth comes from the harness.** It knows which uploads were EICAR,
+  so it checks that every verdict is correct, not just that one exists. Fenced
+  verdict writes record what they would have written, so the report can also
+  show that a second scan never disagreed with the committed one.
+
 ## Alert attempt limit
 
 Alerts are retried with exponential backoff on the DB clock (500 ms doubling,
