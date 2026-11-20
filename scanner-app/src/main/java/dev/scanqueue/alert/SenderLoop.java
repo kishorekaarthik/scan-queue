@@ -36,7 +36,29 @@ public class SenderLoop {
             String id = base + "-" + i;
             threads.add(Thread.ofPlatform().name("send-" + i).start(() -> loop(id)));
         }
-        log.info("sender started: id={} concurrency={} webhook={}", base, props.concurrency(), props.webhookUrl());
+        threads.add(Thread.ofPlatform().name("alert-reaper").start(this::reaperLoop));
+        log.info("sender started: id={} concurrency={} lease={}ms webhook={}",
+                base, props.concurrency(), props.leaseMillis(), props.webhookUrl());
+    }
+
+    private void reaperLoop() {
+        while (running) {
+            try {
+                while (sender.reapExpiredLeases(100) == 100) {
+                    // keep draining while full batches come back
+                }
+                Thread.sleep(props.reaperMillis());
+            } catch (InterruptedException e) {
+                return;
+            } catch (Exception e) {
+                log.warn("alert reaper error: {}", e.toString());
+                try {
+                    Thread.sleep(props.reaperMillis());
+                } catch (InterruptedException ie) {
+                    return;
+                }
+            }
+        }
     }
 
     private void loop(String senderId) {

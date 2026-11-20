@@ -130,7 +130,10 @@ public class JobQueue {
             return Outcome.COMMITTED;
         });
         if (outcome == Outcome.FENCED) {
-            events.record(QueueEvents.Kind.FENCED_WRITE, c, "verdict write rejected: token no longer current");
+            // The rejected result is recorded so the chaos test can check that a re-scan
+            // never disagrees with the committed verdict.
+            events.record(QueueEvents.Kind.FENCED_WRITE, c, "verdict write rejected: token no longer current; would have been "
+                    + (v.malicious() ? "MALICIOUS" : "CLEAN") + " sha256=" + v.sha256());
         }
         return outcome;
     }

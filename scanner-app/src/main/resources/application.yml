@@ -33,6 +33,8 @@ scanqueue:
     webhook-url: ${WEBHOOK_URL:http://localhost:8090/alerts}
     concurrency: ${SENDER_CONCURRENCY:2}
     poll-millis: ${SENDER_POLL_MILLIS:200}
+    lease-millis: ${SENDER_LEASE_MILLIS:15000}          # > http timeout; bounds resend delay after a crash
+    reaper-millis: ${SENDER_REAPER_MILLIS:1000}
     backoff-base-millis: ${SENDER_BACKOFF_BASE_MILLIS:500}
     backoff-max-millis: ${SENDER_BACKOFF_MAX_MILLIS:30000}
     http-timeout-millis: ${SENDER_HTTP_TIMEOUT_MILLIS:10000}

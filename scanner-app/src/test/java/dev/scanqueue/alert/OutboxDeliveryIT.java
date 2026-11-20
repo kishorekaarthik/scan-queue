@@ -72,36 +72,44 @@ class OutboxDeliveryIT {
     }
 
     /**
-     * The webhook records the alert, then holds its response for 6 s. During that
+     * The webhook records the alert, then holds its response for 3 s. During that
      * window the sender (which has not yet marked the row delivered) is SIGKILLed.
-     * A fresh sender resends with the same key; the webhook rejects the duplicate.
+     * The row stays SENDING under the dead sender's lease; when the lease expires a
+     * fresh sender reclaims it (token 2) and resends with the same key, and the
+     * webhook rejects the duplicate.
      */
     @Test
     void senderKilledAfterDeliveryBeforeMarkingResendsAndDuplicateIsRejected() {
         UUID job = insertOutboxRow();
-        GenericContainer<?> webhook = webhook(6_000);
+        GenericContainer<?> webhook = webhook(3_000);
         GenericContainer<?> first = sender("s1");
         GenericContainer<?> second = sender("s2");
         try {
             webhook.start();
             first.start();
             await("webhook accepted the first delivery", () -> webhookCount("ACCEPTED") == 1, 60);
-            assertThat(outbox(job)).containsEntry("status", "PENDING");   // sender still waiting on the response
+            assertThat(outbox(job)).containsEntry("status", "SENDING").containsEntry("attempts", 1);
 
             DockerClientFactory.lazyClient().killContainerCmd(first.getContainerId()).withSignal("KILL").exec();
 
-            // The dead sender's transaction is rolled back by Postgres: the row is
-            // unlocked, still PENDING, and not counted as delivered.
-            await("row unlocked after sender death", () -> rowUnlocked(job), 30);
-            assertThat(outbox(job)).containsEntry("status", "PENDING").containsEntry("attempts", 0);
+            // No transaction was open across the HTTP call, so nothing is rolled back
+            // and nothing is locked: the row simply sits under the dead sender's lease.
+            assertThat(rowUnlocked(job)).isTrue();
+            assertThat(outbox(job)).containsEntry("status", "SENDING").containsEntry("attempts", 1)
+                    .containsEntry("delivered_at", null);
 
             second.start();
-            await("row delivered by the restarted sender", () -> "DELIVERED".equals(outbox(job).get("status")), 60);
+            await("row delivered by the restarted sender", () -> "DELIVERED".equals(outbox(job).get("status")), 90);
 
+            assertThat(outbox(job)).containsEntry("attempts", 2);
             assertThat(webhookCount("ACCEPTED")).isEqualTo(1);
             assertThat(webhookCount("DUPLICATE_REJECTED")).isEqualTo(1);
             assertThat(jdbc.queryForMap("SELECT count(*) AS keys, max(delivery_count) AS deliveries FROM webhook.received_alert"))
                     .containsEntry("keys", 1L).containsEntry("deliveries", 2);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM queue_event WHERE kind = 'ALERT_LEASE_EXPIRED'", Long.class))
+                    .isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT worker_id FROM queue_event WHERE kind = 'ALERT_LEASE_EXPIRED'", String.class))
+                    .startsWith("sender-s1-");
             assertThat(jdbc.queryForObject("SELECT detail FROM queue_event WHERE kind = 'ALERT_DELIVERED'", String.class))
                     .startsWith("duplicate");
         } finally {
@@ -227,7 +235,8 @@ class OutboxDeliveryIT {
                         "SENDER_POLL_MILLIS", "100",
                         "SENDER_BACKOFF_BASE_MILLIS", "200",
                         "SENDER_BACKOFF_MAX_MILLIS", "3200",
-                        "SENDER_HTTP_TIMEOUT_MILLIS", "10000"))
+                        "SENDER_LEASE_MILLIS", "9000",
+                        "SENDER_HTTP_TIMEOUT_MILLIS", "8000"))
                 .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(name)))
                 .waitingFor(Wait.forLogMessage(".*sender started.*", 1).withStartupTimeout(Duration.ofMinutes(2)));
     }
@@ -246,7 +255,7 @@ class OutboxDeliveryIT {
     }
 
     private static Map<String, Object> outbox(UUID job) {
-        return jdbc.queryForMap("SELECT status, attempts, last_error, delivered_at FROM alert_outbox WHERE job_id = ?", job);
+        return jdbc.queryForMap("SELECT status, attempts, last_error, delivered_at, lease_owner FROM alert_outbox WHERE job_id = ?", job);
     }
 
     /** True once no transaction holds the row lock (NOWAIT fails fast if one does). */

@@ -23,7 +23,10 @@ public class QueueEvents {
 
     private static final Logger log = LoggerFactory.getLogger(QueueEvents.class);
 
-    public enum Kind { LEASE_EXPIRED, FENCED_WRITE, LEASE_LOST, RETRY, DEAD_LETTERED, ALERT_DELIVERED, ALERT_SEND_FAILED }
+    public enum Kind {
+        LEASE_EXPIRED, FENCED_WRITE, LEASE_LOST, RETRY, DEAD_LETTERED,
+        ALERT_DELIVERED, ALERT_SEND_FAILED, ALERT_LEASE_EXPIRED, ALERT_DEAD
+    }
 
     private final JdbcTemplate jdbc;
     private final Map<Kind, Counter> counters = new EnumMap<>(Kind.class);
@@ -42,7 +45,8 @@ public class QueueEvents {
     /** Joins the caller's transaction if there is one (JdbcTemplate uses the bound connection). */
     public void record(Kind kind, UUID jobId, int token, String workerId, String detail) {
         counters.get(kind).increment();
-        if (kind == Kind.FENCED_WRITE || kind == Kind.LEASE_LOST || kind == Kind.ALERT_SEND_FAILED) {
+        if (kind == Kind.FENCED_WRITE || kind == Kind.LEASE_LOST
+                || kind == Kind.ALERT_SEND_FAILED || kind == Kind.ALERT_DEAD) {
             log.warn("{} job={} token={} worker={}: {}", kind, jobId, token, workerId, detail);
         } else {
             log.info("{} job={} token={} worker={}: {}", kind, jobId, token, workerId, detail);
