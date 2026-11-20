@@ -12,13 +12,12 @@ import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import dev.scanqueue.it.Images;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -64,9 +63,7 @@ class WorkerContainerIT {
     static void start() {
         POSTGRES.start();
         MINIO.start();
-        worker = new GenericContainer<>(new ImageFromDockerfile("scan-queue/app-it", false)
-                .withFileFromPath("Dockerfile", Path.of("Dockerfile"))
-                .withFileFromPath("target/scanner-app.jar", Path.of("target/scanner-app.jar")))
+        worker = new GenericContainer<>(Images.SCANNER)
                 .withNetwork(NET)
                 .withEnv(Map.of(
                         "SPRING_PROFILES_ACTIVE", "worker",

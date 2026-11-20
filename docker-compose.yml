@@ -19,9 +19,11 @@ services:
       POSTGRES_DB: scanqueue
       POSTGRES_USER: scanqueue
       POSTGRES_PASSWORD: scanqueue
-    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=60"]
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=100"]
     ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro   # creates the webhook database
     mem_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scanqueue -d scanqueue"]
@@ -64,6 +66,34 @@ services:
     mem_limit: 300m
     depends_on:
       api: { condition: service_started }   # api builds the image and runs migrations first
+    restart: on-failure
+
+  sender:
+    image: scan-queue/app:latest
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: sender
+      WEBHOOK_URL: http://webhook:8080/alerts
+    mem_limit: 256m
+    depends_on:
+      api: { condition: service_started }
+      webhook: { condition: service_started }
+    restart: on-failure
+
+  webhook:
+    build: ./mock-webhook
+    image: scan-queue/webhook:latest
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/webhook
+      DB_USER: scanqueue
+      DB_PASSWORD: scanqueue
+      # Fault injection, off by default (see AlertController).
+      WEBHOOK_RESPONSE_DELAY_MILLIS: ${WEBHOOK_RESPONSE_DELAY_MILLIS:-0}
+      WEBHOOK_FAIL_AFTER_COMMIT_RATE: ${WEBHOOK_FAIL_AFTER_COMMIT_RATE:-0}
+    ports: ["8090:8080"]
+    mem_limit: 256m
+    depends_on:
+      postgres: { condition: service_healthy }
     restart: on-failure
 
 volumes:

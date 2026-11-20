@@ -29,6 +29,13 @@ scanqueue:
     poll-millis: ${WORKER_POLL_MILLIS:200}
     reaper-millis: ${WORKER_REAPER_MILLIS:1000}
     retry-backoff-millis: ${WORKER_RETRY_BACKOFF_MILLIS:2000}
+  sender:
+    webhook-url: ${WEBHOOK_URL:http://localhost:8090/alerts}
+    concurrency: ${SENDER_CONCURRENCY:2}
+    poll-millis: ${SENDER_POLL_MILLIS:200}
+    backoff-base-millis: ${SENDER_BACKOFF_BASE_MILLIS:500}
+    backoff-max-millis: ${SENDER_BACKOFF_MAX_MILLIS:30000}
+    http-timeout-millis: ${SENDER_HTTP_TIMEOUT_MILLIS:10000}
   yara:
     binary: ${YARA_BINARY:yara}
     timeout-millis: ${YARA_TIMEOUT_MILLIS:30000}

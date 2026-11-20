@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Queue metrics, kept two ways:
@@ -22,7 +23,7 @@ public class QueueEvents {
 
     private static final Logger log = LoggerFactory.getLogger(QueueEvents.class);
 
-    public enum Kind { LEASE_EXPIRED, FENCED_WRITE, LEASE_LOST, RETRY, DEAD_LETTERED }
+    public enum Kind { LEASE_EXPIRED, FENCED_WRITE, LEASE_LOST, RETRY, DEAD_LETTERED, ALERT_DELIVERED, ALERT_SEND_FAILED }
 
     private final JdbcTemplate jdbc;
     private final Map<Kind, Counter> counters = new EnumMap<>(Kind.class);
@@ -35,14 +36,19 @@ public class QueueEvents {
     }
 
     public void record(Kind kind, Claim c, String detail) {
+        record(kind, c.jobId(), c.token(), c.workerId(), detail);
+    }
+
+    /** Joins the caller's transaction if there is one (JdbcTemplate uses the bound connection). */
+    public void record(Kind kind, UUID jobId, int token, String workerId, String detail) {
         counters.get(kind).increment();
-        if (kind == Kind.FENCED_WRITE || kind == Kind.LEASE_LOST) {
-            log.warn("{} job={} token={} worker={}: {}", kind, c.jobId(), c.token(), c.workerId(), detail);
+        if (kind == Kind.FENCED_WRITE || kind == Kind.LEASE_LOST || kind == Kind.ALERT_SEND_FAILED) {
+            log.warn("{} job={} token={} worker={}: {}", kind, jobId, token, workerId, detail);
         } else {
-            log.info("{} job={} token={} worker={}: {}", kind, c.jobId(), c.token(), c.workerId(), detail);
+            log.info("{} job={} token={} worker={}: {}", kind, jobId, token, workerId, detail);
         }
         jdbc.update("INSERT INTO queue_event (kind, job_id, claim_token, worker_id, detail) VALUES (?, ?, ?, ?, ?)",
-                kind.name(), c.jobId(), c.token(), c.workerId(), detail);
+                kind.name(), jobId, token, workerId, detail);
     }
 
     /** Reaper events are inserted by the reap statement itself; only bump the counters here. */

@@ -55,7 +55,7 @@ class QueueSemanticsTest extends IntegrationTestBase {
 
     @BeforeEach
     void clean() {
-        jdbc.execute("TRUNCATE scan_verdict, queue_event, scan_job");
+        jdbc.execute("TRUNCATE alert_outbox, scan_verdict, queue_event, scan_job");
     }
 
     @Test
@@ -117,7 +117,8 @@ class QueueSemanticsTest extends IntegrationTestBase {
 
         assertThat(queue.complete(fresh, verdict("bbbb", false))).isEqualTo(JobQueue.Outcome.COMMITTED);
 
-        // A wakes up and tries to act on its stale lease: every write is rejected.
+        // A wakes up and tries to act on its stale lease: every write is rejected,
+        // including its MALICIOUS verdict, so no alert is queued for it.
         assertThat(queue.renew(zombie, 30_000)).isFalse();
         assertThat(queue.complete(zombie, verdict("aaaa", true))).isEqualTo(JobQueue.Outcome.FENCED);
         assertThat(queue.fail(zombie, "late failure", 0)).isEqualTo(JobQueue.Outcome.FENCED);
@@ -126,6 +127,7 @@ class QueueSemanticsTest extends IntegrationTestBase {
         assertThat(v).containsEntry("worker_id", "worker-B")
                 .containsEntry("claim_token", 2)
                 .containsEntry("verdict", "CLEAN");
+        assertThat(outboxRows()).isZero();
         assertThat(jobs.find(id).orElseThrow().status()).isEqualTo(JobStatus.DONE);
         assertThat(events.count(Kind.LEASE_EXPIRED)).isEqualTo(1);
         assertThat(events.count(Kind.FENCED_WRITE)).isEqualTo(2);
@@ -173,6 +175,49 @@ class QueueSemanticsTest extends IntegrationTestBase {
         String fencedWorker = jdbc.queryForObject(
                 "SELECT worker_id FROM queue_event WHERE kind = 'FENCED_WRITE'", String.class);
         assertThat(fencedWorker).isEqualTo("worker-A");
+        // A's (wrong) MALICIOUS verdict was fenced out: it created no outbox row.
+        assertThat(outboxRows()).isZero();
+    }
+
+    /** Zombie and winner both find the file malicious: still exactly one alert, from the winner's transaction. */
+    @Test
+    void fencedZombieAddsNoSecondAlert() throws Exception {
+        UUID id = newJob("both-malicious", 5);
+        Claim zombie = queue.claim("worker-A", 300).orElseThrow();
+        Thread.sleep(700);
+        queue.reapExpiredLeases(100);
+        Claim fresh = queue.claim("worker-B", 30_000).orElseThrow();
+
+        assertThat(queue.complete(fresh, verdict("bbbb", true))).isEqualTo(JobQueue.Outcome.COMMITTED);
+        assertThat(queue.complete(zombie, verdict("bbbb", true))).isEqualTo(JobQueue.Outcome.FENCED);
+
+        assertThat(outboxRows()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT idempotency_key FROM alert_outbox", String.class))
+                .isEqualTo("alert:" + id);
+    }
+
+    @Test
+    void maliciousVerdictQueuesOneAlertInTheSameTransactionCleanQueuesNone() {
+        UUID bad = newJob("bad", 5);
+        UUID good = newJob("good", 5);
+        Claim c1 = queue.claim("w", 30_000).orElseThrow();
+        Claim c2 = queue.claim("w", 30_000).orElseThrow();
+        Claim badClaim = c1.jobId().equals(bad) ? c1 : c2;
+        Claim goodClaim = c1.jobId().equals(bad) ? c2 : c1;
+
+        queue.complete(badClaim, new VerdictRecord("ab".repeat(32), true, "EICAR test file", List.of("EICAR_Test_File"), 3));
+        queue.complete(goodClaim, verdict("cd".repeat(32), false));
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT job_id, idempotency_key, status, attempts, payload->>'hashMatch' AS hm, payload->'yaraMatches'->>0 AS rule FROM alert_outbox");
+        assertThat(row).containsEntry("job_id", bad)
+                .containsEntry("idempotency_key", "alert:" + bad)
+                .containsEntry("status", "PENDING")
+                .containsEntry("attempts", 0)
+                .containsEntry("hm", "EICAR test file")
+                .containsEntry("rule", "EICAR_Test_File");
+        assertThat(outboxRows()).isEqualTo(1);
+        assertThat(good).isNotEqualTo(bad);
     }
 
     /** Scan takes ~3x the lease; heartbeats keep it, and a competing worker never gets the job. */
@@ -273,6 +318,10 @@ class QueueSemanticsTest extends IntegrationTestBase {
     private JobProcessor processor(YaraRunner yara, long leaseMillis, long heartbeatMillis) {
         return new JobProcessor(queue, new ScanEngine(store, hashList, yara), events,
                 new WorkerProperties(1, leaseMillis, heartbeatMillis, 50, 100, 0));
+    }
+
+    private long outboxRows() {
+        return jdbc.queryForObject("SELECT count(*) FROM alert_outbox", Long.class);
     }
 
     private static VerdictRecord verdict(String sha, boolean malicious) {

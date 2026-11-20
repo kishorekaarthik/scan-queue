@@ -18,6 +18,8 @@
     <name>scan-queue</name>
 
     <modules>
+        <!-- mock-webhook first: scanner-app's integration tests run its image. -->
+        <module>mock-webhook</module>
         <module>scanner-app</module>
     </modules>
 

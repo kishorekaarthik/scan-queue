@@ -82,6 +82,90 @@ docker compose up -d --build
 bash scripts/demo-phase2.sh   # 1000 files, kill -9 one busy worker, drain, report
 ```
 
+## Phase 3: exactly-once alerts (transactional outbox)
+
+```
+worker ── one transaction ──────────────────────────────┐
+  UPDATE scan_job SET status='DONE'                     │ fenced: id + token + RUNNING
+     WHERE id=? AND attempts=<token> AND status='RUNNING'│ 0 rows -> rollback, nothing below happens
+  INSERT INTO scan_verdict ...                          │
+  INSERT INTO alert_outbox (idempotency_key='alert:'||job_id)   (MALICIOUS only)
+COMMIT ─────────────────────────────────────────────────┘
+
+sender ── one transaction per row ──────────────────────┐
+  SELECT ... FROM alert_outbox WHERE status='PENDING'   │
+     AND available_at<=now() LIMIT 1 FOR UPDATE SKIP LOCKED
+  POST /alerts  Idempotency-Key: alert:<job_id>         │ row stays locked while in flight
+  2xx  -> UPDATE status='DELIVERED'                      │
+  else -> UPDATE attempts+1, available_at=now()+backoff  │ 200, 400, 800 ... capped at 30 s
+COMMIT ─────────────────────────────────────────────────┘
+
+mock-webhook (own database)
+  INSERT INTO received_alert (idempotency_key ...) ON CONFLICT DO NOTHING
+  1 row -> 201 accepted       0 rows -> 200 "duplicate_rejected"   (+ delivery_log row)
+```
+
+### Why "at-least-once + idempotency = effectively exactly once"
+
+Exactly-once *delivery* over a network is impossible. After the sender
+POSTs, it can crash (or lose the response) before recording success. From the
+sender's point of view, "the receiver got it" and "the receiver never got it"
+look the same, so it must either resend, risking a duplicate, or not resend,
+risking a lost alert. No protocol avoids that choice; it is the Two Generals
+problem.
+
+So this system splits the guarantee in two:
+
+1. **At-least-once delivery.** The alert row is committed atomically with the
+   verdict (outbox), so it cannot be lost. It stays `PENDING` until a 2xx is
+   recorded. A sender that dies mid-send leaves it `PENDING`, because Postgres
+   rolls back the dead connection's transaction, and the next sender resends it.
+2. **Idempotent processing.** Every resend carries the same key, derived from
+   the job (`alert:<job_id>`) and never from the attempt. The receiver keeps
+   keys under a unique constraint in its own database, so it acts on the first
+   copy and rejects the rest, even across its own restarts and even when two
+   copies race.
+
+Messages may be *delivered* more than once, but each is *processed* exactly
+once. That is the property that matters (one page, one ticket, one SIEM
+event), and it is what "exactly once" means in Kafka, Stripe's API and
+similar systems.
+
+What makes it hold:
+
+| Failure | Handled by |
+|---|---|
+| Worker crashes after verdict, before alert send | Outbox row committed with the verdict; sender picks it up |
+| Zombie worker writes late | Fenced update matches 0 rows, so no verdict and no outbox row |
+| Sender crashes after webhook got it, before marking | Tx rolled back, row `PENDING`, resend, webhook rejects the duplicate |
+| Sender hangs mid-transaction | `idle_in_transaction_session_timeout=30s` kills the session; same as above |
+| Two senders | `FOR UPDATE SKIP LOCKED`: a row being sent is invisible to the other |
+| Webhook down | Exponential backoff on the DB clock; delivered when it returns |
+| Webhook restarts | Keys live in Postgres, not in memory |
+
+### Tests
+
+| Test | Proves |
+|---|---|
+| `zombieWorkerWriteIsFencedOut`, `zombieWorkerIsFencedOutEndToEnd` | the zombie's MALICIOUS verdict creates **no outbox row** |
+| `fencedZombieAddsNoSecondAlert` | both find it malicious: exactly 1 outbox row |
+| `maliciousVerdictQueuesOneAlert…CleanQueuesNone` | outbox row with key `alert:<job_id>` only for MALICIOUS |
+| `senderKilledAfterDeliveryBeforeMarking…` | webhook records the alert, sender is `docker kill -s KILL`ed while waiting for the response, row is unlocked and still `PENDING`, new sender resends, webhook: 1 accepted + 1 duplicate rejected |
+| `webhookDownSenderRetriesWithBackoff…` | retries at ≥ 200/400/800/1600 ms (DB-clock gaps), delivered once the webhook starts, 0 duplicates |
+| `webhookRestartedBetweenTwoDeliveries…` | key accepted by one webhook container, rejected by a brand-new one |
+| `twoSendersRunningAtOnceNeverDoubleSend` | 2 sender containers, 40 alerts: 40 accepted, 0 duplicates, both senders did work |
+| `AlertControllerTest` (mock-webhook) | 30 concurrent POSTs of one key: exactly one `201` |
+
+The webhook's `delivery_log` table counts **duplicates rejected**, the metric
+that shows the dedup is doing real work (`GET :8090/stats`).
+
+### Demo
+
+```bash
+docker compose up -d --build
+bash scripts/demo-phase3.sh   # 400 files, sender kill -9 mid-delivery, restart, reconcile
+```
+
 ### Safety
 
 No real malware is used anywhere. The "malicious" sample is the

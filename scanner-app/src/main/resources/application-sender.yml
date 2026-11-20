@@ -1,0 +1,7 @@
+# Sender role: no web server. The outbox row lock is held while the HTTP call is
+# in flight; if this process hangs (rather than dies), Postgres ends the session
+# after 30 s idle-in-transaction, rolling back and releasing the row for retry.
+spring:
+  datasource:
+    hikari:
+      connection-init-sql: SET idle_in_transaction_session_timeout = '30s'

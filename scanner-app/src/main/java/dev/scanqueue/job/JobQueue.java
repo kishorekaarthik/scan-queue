@@ -110,6 +110,23 @@ public class JobQueue {
                 ps.setLong(8, v.scanMillis());
                 return ps;
             });
+            if (v.malicious()) {
+                // Transactional outbox: the alert exists iff this fenced transaction commits.
+                // The idempotency key is derived from the job, never from the attempt.
+                jdbc.update("""
+                        INSERT INTO alert_outbox (job_id, idempotency_key, payload)
+                        SELECT j.id, 'alert:' || j.id,
+                               jsonb_build_object(
+                                   'jobId',       j.id,
+                                   'filename',    j.original_filename,
+                                   'sha256',      v.sha256,
+                                   'hashMatch',   v.hash_match,
+                                   'yaraMatches', to_jsonb(v.yara_matches),
+                                   'scannedAt',   v.scanned_at)
+                        FROM scan_job j JOIN scan_verdict v ON v.job_id = j.id
+                        WHERE j.id = ?
+                        """, c.jobId());
+            }
             return Outcome.COMMITTED;
         });
         if (outcome == Outcome.FENCED) {
