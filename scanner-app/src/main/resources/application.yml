@@ -1,0 +1,30 @@
+# Shared by every role. Role-specific settings live in application-<role>.yml.
+spring:
+  application:
+    name: scan-queue
+  main:
+    web-application-type: none          # only the api profile runs a web server
+    banner-mode: off
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/scanqueue}
+    username: ${DB_USER:scanqueue}
+    password: ${DB_PASSWORD:scanqueue}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:4}
+  flyway:
+    enabled: true                         # Flyway takes a Postgres advisory lock, so concurrent starts are safe
+
+scanqueue:
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:scanqueue}
+    secret-key: ${MINIO_SECRET_KEY:scanqueue-secret}
+    bucket: ${MINIO_BUCKET:uploads}
+  jobs:
+    max-attempts: ${JOB_MAX_ATTEMPTS:5}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -1,0 +1,59 @@
+name: scan-queue
+
+# Memory limits are deliberate: the whole stack must fit comfortably on a
+# laptop. Build the jar first: ./mvnw -q package -DskipTests
+
+x-app-env: &app-env
+  DB_URL: jdbc:postgresql://postgres:5432/scanqueue
+  DB_USER: scanqueue
+  DB_PASSWORD: scanqueue
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_ACCESS_KEY: scanqueue
+  MINIO_SECRET_KEY: scanqueue-secret
+  MINIO_BUCKET: uploads
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: scanqueue
+      POSTGRES_USER: scanqueue
+      POSTGRES_PASSWORD: scanqueue
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=60"]
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanqueue -d scanqueue"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    # Official minio/minio images are no longer published; this is Chainguard's
+    # build of the same open-source MinIO server, pinned by digest.
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: scanqueue
+      MINIO_ROOT_PASSWORD: scanqueue-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+    mem_limit: 256m
+
+  api:
+    build: ./scanner-app
+    image: scan-queue/app:latest
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: api
+    ports: ["8080:8080"]
+    mem_limit: 320m
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_started }
+    restart: on-failure
+
+volumes:
+  pgdata:
+  miniodata:
