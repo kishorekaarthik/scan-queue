@@ -1,0 +1,88 @@
+[15:47:40] bringing up the stack with 5 workers
+[15:47:49] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1336 MB
+[15:47:49] run 1: reset (seed 20261121)
+[15:47:50] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[15:48:12] docker pause b48090966a9e failed: [docker, pause, b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38] exited 1: Error response from daemon: cannot pause container b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38: cannot pause a stopped container
+[15:48:12] pause worker b48090966a9e: skipped (no live lease within 5 s, or pause failed)
+[15:48:34] docker pause ce9706c81541 failed: [docker, pause, ce9706c815415b1dfb64e0af525033a9a62dc9170cbf6f65b843692ec35e866d] exited 1: Error response from daemon: cannot pause container ce9706c815415b1dfb64e0af525033a9a62dc9170cbf6f65b843692ec35e866d: OCI runtime pause failed: container not running
+[15:48:34] pause sender ce9706c81541: frozen for 18000 ms holding 0 lease(s)
+[15:48:56] pause worker 7494f49f5532: frozen for 13000 ms holding 2 lease(s)
+[15:49:02] run 1: uploads done; chaos continues until every scan job is finished
+[15:50:31] run 1: chaos stopped, all containers restarted; draining
+[15:51:14] run 1: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 16 fenced 0 lease-exp 70 | 62.6 jobs/s p50 59376.0 ms p95 78237.0 ms | worker kills 42 (in lease: 41 confirmed) sender kills 11 (in flight: 11 confirmed) | peak mem 1374 MB
+[15:51:14] run 2: reset (seed 20261122)
+[15:51:15] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[15:51:33] pause worker b48090966a9e: frozen for 13000 ms holding 2 lease(s)
+[15:51:58] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[15:52:24] pause worker 2878f43430bf: frozen for 13000 ms holding 1 lease(s)
+[15:53:37] run 2: uploads done; chaos continues until every scan job is finished
+[15:54:54] run 2: chaos stopped, all containers restarted; draining
+[15:55:34] run 2: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 19 fenced 4 lease-exp 92 | 46.3 jobs/s p50 60544.0 ms p95 63705.0 ms | worker kills 54 (in lease: 48 confirmed) sender kills 17 (in flight: 17 confirmed) | peak mem 1355 MB
+[15:55:34] run 3: reset (seed 20261123)
+[15:55:34] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[15:55:49] pause worker f38ce5825ea6: frozen for 13000 ms holding 2 lease(s)
+[15:56:19] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[15:56:31] pause worker 7494f49f5532: frozen for 13000 ms holding 2 lease(s)
+[15:56:49] run 3: uploads done; chaos continues until every scan job is finished
+[15:58:08] run 3: chaos stopped, all containers restarted; draining
+[15:58:53] run 3: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 15 fenced 4 lease-exp 71 | 66.1 jobs/s p50 53423.0 ms p95 66811.0 ms | worker kills 38 (in lease: 37 confirmed) sender kills 12 (in flight: 11 confirmed) | peak mem 1381 MB
+[15:58:53] run 4: reset (seed 20261124)
+[15:58:53] run 4: uploading 10000 files (every 20th is EICAR), chaos on
+[15:59:06] pause worker f38ce5825ea6: frozen for 13000 ms holding 2 lease(s)
+[15:59:27] pause sender ce9706c81541: frozen for 18000 ms holding 1 lease(s)
+[15:59:48] pause worker b48090966a9e: frozen for 13000 ms holding 2 lease(s)
+[16:00:15] run 4: uploads done; chaos continues until every scan job is finished
+[16:01:34] run 4: chaos stopped, all containers restarted; draining
+[16:02:16] run 4: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 13 fenced 1 lease-exp 62 | 63.8 jobs/s p50 60573.0 ms p95 65548.0 ms | worker kills 39 (in lease: 36 confirmed) sender kills 12 (in flight: 11 confirmed) | peak mem 1378 MB
+[16:02:16] run 5: reset (seed 20261125)
+[16:02:17] run 5: uploading 10000 files (every 20th is EICAR), chaos on
+[16:02:46] pause worker ca2e517da30e: frozen for 13000 ms holding 2 lease(s)
+[16:03:09] pause sender ce9706c81541: frozen for 18000 ms holding 0 lease(s)
+[16:03:25] docker pause b48090966a9e failed: [docker, pause, b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38] exited 1: Error response from daemon: container b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38 is not running
+[16:03:25] pause worker b48090966a9e: skipped (no live lease within 5 s, or pause failed)
+[16:03:40] run 5: uploads done; chaos continues until every scan job is finished
+[16:05:01] run 5: chaos stopped, all containers restarted; draining
+[16:05:46] run 5: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 14 fenced 0 lease-exp 76 | 62.2 jobs/s p50 61662.0 ms p95 70389.0 ms | worker kills 45 (in lease: 43 confirmed) sender kills 12 (in flight: 12 confirmed) | peak mem 1385 MB
+[16:05:46] run 6: reset (seed 20261126)
+[16:05:46] run 6: uploading 10000 files (every 20th is EICAR), chaos on
+[16:06:06] docker pause b48090966a9e failed: [docker, pause, b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38] exited 1: Error response from daemon: cannot pause container b48090966a9e8a7ff845487960329e55dc432394e8272b321b4a41fd0fdfad38: OCI runtime pause failed: container not running
+[16:06:06] pause worker b48090966a9e: skipped (no live lease within 5 s, or pause failed)
+[16:06:36] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[16:06:52] pause worker f38ce5825ea6: frozen for 13000 ms holding 2 lease(s)
+[16:07:07] run 6: uploads done; chaos continues until every scan job is finished
+[16:08:26] run 6: chaos stopped, all containers restarted; draining
+[16:09:08] run 6: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 13 fenced 1 lease-exp 78 | 63.2 jobs/s p50 58274.0 ms p95 69317.0 ms | worker kills 42 (in lease: 40 confirmed) sender kills 11 (in flight: 11 confirmed) | peak mem 1376 MB
+[16:09:08] run 7: reset (seed 20261127)
+[16:09:08] run 7: uploading 10000 files (every 20th is EICAR), chaos on
+[16:09:25] pause worker 2878f43430bf: frozen for 13000 ms holding 1 lease(s)
+[16:09:46] pause sender ce9706c81541: frozen for 18000 ms holding 1 lease(s)
+[16:10:11] pause worker b48090966a9e: frozen for 13000 ms holding 2 lease(s)
+[16:10:36] run 7: uploads done; chaos continues until every scan job is finished
+[16:12:20] run 7: chaos stopped, all containers restarted; draining
+[16:12:57] run 7: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 13 fenced 3 lease-exp 92 | 53.0 jobs/s p50 66384.0 ms p95 91677.0 ms | worker kills 49 (in lease: 47 confirmed) sender kills 14 (in flight: 13 confirmed) | peak mem 1393 MB
+[16:12:57] run 8: reset (seed 20261128)
+[16:12:58] run 8: uploading 10000 files (every 20th is EICAR), chaos on
+[16:13:13] pause worker f38ce5825ea6: frozen for 13000 ms holding 2 lease(s)
+[16:13:30] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[16:13:56] pause worker f38ce5825ea6: frozen for 13000 ms holding 2 lease(s)
+[16:15:00] run 8: uploads done; chaos continues until every scan job is finished
+[16:16:52] run 8: chaos stopped, all containers restarted; draining
+[16:17:31] run 8: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 21 fenced 2 lease-exp 98 | 43.7 jobs/s p50 81304.0 ms p95 96735.0 ms | worker kills 58 (in lease: 52 confirmed) sender kills 17 (in flight: 17 confirmed) | peak mem 1432 MB
+[16:17:31] run 9: reset (seed 20261129)
+[16:17:31] run 9: uploading 10000 files (every 20th is EICAR), chaos on
+[16:17:43] pause worker 7494f49f5532: frozen for 13000 ms holding 2 lease(s)
+[16:18:00] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[16:18:20] pause worker b48090966a9e: frozen for 13000 ms holding 2 lease(s)
+[16:19:17] run 9: uploads done; chaos continues until every scan job is finished
+[16:25:24] run 9: chaos stopped, all containers restarted; draining
+[16:26:05] run 9: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 19 fenced 4 lease-exp 112 | 21.3 jobs/s p50 85179.0 ms p95 355399.0 ms | worker kills 63 (in lease: 62 confirmed) sender kills 18 (in flight: 18 confirmed) | peak mem 1408 MB
+[16:26:05] run 10: reset (seed 20261130)
+[16:26:06] run 10: uploading 10000 files (every 20th is EICAR), chaos on
+[16:26:25] pause worker ca2e517da30e: frozen for 13000 ms holding 2 lease(s)
+[16:26:39] docker pause ce9706c81541 failed: [docker, pause, ce9706c815415b1dfb64e0af525033a9a62dc9170cbf6f65b843692ec35e866d] exited 1: Error response from daemon: cannot pause container ce9706c815415b1dfb64e0af525033a9a62dc9170cbf6f65b843692ec35e866d: OCI runtime pause failed: container not running
+[16:26:39] pause sender ce9706c81541: frozen for 18000 ms holding 2 lease(s)
+[16:26:58] pause worker 2878f43430bf: frozen for 13000 ms holding 2 lease(s)
+[16:27:50] run 10: uploads done; chaos continues until every scan job is finished
+[16:30:15] run 10: chaos stopped, all containers restarted; draining
+[16:30:48] run 10: checks PASS | jobs 10000 verdicts 10000 malicious 500 accepted 500 dup-rejected 16 fenced 1 lease-exp 127 | 41.1 jobs/s p50 88510.0 ms p95 126633.0 ms | worker kills 71 (in lease: 69 confirmed) sender kills 18 (in flight: 18 confirmed) | peak mem 1407 MB
+[16:30:48] report written to results\final\summary.md
