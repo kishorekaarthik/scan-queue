@@ -1,0 +1,4 @@
+# Worker role: no web server (inherited web-application-type: none).
+logging:
+  level:
+    dev.scanqueue: INFO

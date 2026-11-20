@@ -54,6 +54,18 @@ services:
       minio: { condition: service_started }
     restart: on-failure
 
+  worker:
+    image: scan-queue/app:latest
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: worker
+    deploy:
+      replicas: 3                 # override with: docker compose up --scale worker=N
+    mem_limit: 300m
+    depends_on:
+      api: { condition: service_started }   # api builds the image and runs migrations first
+    restart: on-failure
+
 volumes:
   pgdata:
   miniodata:

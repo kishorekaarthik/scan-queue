@@ -22,6 +22,16 @@ scanqueue:
     bucket: ${MINIO_BUCKET:uploads}
   jobs:
     max-attempts: ${JOB_MAX_ATTEMPTS:5}
+  worker:
+    concurrency: ${WORKER_CONCURRENCY:2}
+    lease-millis: ${WORKER_LEASE_MILLIS:10000}         # lease granted per claim / renewal (DB clock)
+    heartbeat-millis: ${WORKER_HEARTBEAT_MILLIS:3000}  # renew every 3 s -> survives 2 missed beats
+    poll-millis: ${WORKER_POLL_MILLIS:200}
+    reaper-millis: ${WORKER_REAPER_MILLIS:1000}
+    retry-backoff-millis: ${WORKER_RETRY_BACKOFF_MILLIS:2000}
+  yara:
+    binary: ${YARA_BINARY:yara}
+    timeout-millis: ${YARA_TIMEOUT_MILLIS:30000}
 
 management:
   endpoints:
