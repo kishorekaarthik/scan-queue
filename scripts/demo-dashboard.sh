@@ -21,7 +21,9 @@ echo
 echo "  Open http://localhost:8080/ and start recording."
 for i in $(seq "$WAIT" -1 1); do printf "\r  chaos starts in %2d s " "$i"; sleep 1; done
 echo
-java -Xmx256m -jar chaos/target/chaos.jar run --runs 1 --files "$FILES" --out results/demo
+# PAUSE_AFTER_RESET_MS: hold a few seconds on the zeroed dashboard before uploads start
+java -Xmx256m -jar chaos/target/chaos.jar run --runs 1 --files "$FILES" --out results/demo \
+  --pause-after-reset-ms "${PAUSE_AFTER_RESET_MS:-3000}"
 echo
 echo "Done. Checks and numbers: results/demo/summary.md"
 echo "The dashboard stays live; stop the stack with: docker compose down"

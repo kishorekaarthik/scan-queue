@@ -39,7 +39,7 @@ public final class ChaosMain {
     record Config(String command, int runs, int files, int eicarEvery, int workers, int webhookRestarts,
                   int uploadThreads, long webhookDelayMillis, long seed, String mode, Path out, Path readme,
                   long memLimitMb, String api, String webhookApi, String dbUrl, String webhookDbUrl,
-                  List<String> variants) {
+                  List<String> variants, long pauseAfterResetMillis) {
 
         static Config parse(String[] a) {
             Map<String, String> o = new LinkedHashMap<>();
@@ -67,7 +67,8 @@ public final class ChaosMain {
                     o.getOrDefault("webhook", "http://localhost:8090"),
                     o.getOrDefault("db", "jdbc:postgresql://localhost:55432/scanqueue"),
                     o.getOrDefault("webhook-db", "jdbc:postgresql://localhost:55432/webhook?currentSchema=webhook"),
-                    List.of(o.getOrDefault("variants", o.getOrDefault("variant", cmd.equals("ablation") ? "A,B,C,D,E" : "A")).split(",")));
+                    List.of(o.getOrDefault("variants", o.getOrDefault("variant", cmd.equals("ablation") ? "A,B,C,D,E" : "A")).split(",")),
+                    Long.parseLong(o.getOrDefault("pause-after-reset-ms", "0")));   // demo recording only
         }
     }
 
@@ -165,6 +166,10 @@ public final class ChaosMain {
             awaitHealthy(cfg);
             q.exec("TRUNCATE alert_outbox, scan_verdict, queue_event, scan_job");
             w.exec("TRUNCATE webhook.delivery_log, webhook.received_alert");
+            log("run " + run + ": tables cleared");
+            if (cfg.pauseAfterResetMillis() > 0) {
+                Thread.sleep(cfg.pauseAfterResetMillis());   // lets a dashboard recording start at zero
+            }
 
             MemoryWatch mem = new MemoryWatch(docker, cfg.memLimitMb() - 512);   // leave room for the harness JVM
             mem.start();

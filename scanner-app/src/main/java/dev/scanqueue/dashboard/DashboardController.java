@@ -59,7 +59,7 @@ public class DashboardController {
                   (SELECT count(*) FROM scan_job WHERE finished_at > now() - interval '5 seconds') / 5.0 AS jobs_per_sec
                 """));
         s.put("recent_events", jdbc.queryForList("""
-                SELECT kind, left(coalesce(worker_id, ''), 24) AS who, to_char(at, 'HH24:MI:SS') AS at
+                SELECT kind, left(coalesce(worker_id, ''), 24) AS who, (extract(epoch FROM at) * 1000)::bigint AS at_ms
                 FROM queue_event
                 WHERE kind IN ('FENCED_WRITE', 'LEASE_EXPIRED', 'ALERT_LEASE_EXPIRED', 'LEASE_LOST', 'DEAD_LETTERED', 'ALERT_DEAD')
                 ORDER BY id DESC LIMIT 8

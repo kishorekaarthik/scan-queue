@@ -49,8 +49,13 @@ Chaos runtime 40 min for 10 runs (excluding stack start-up); peak container memo
 
 <!-- chaos:headline:end -->
 
-<!-- Dashboard recording goes here: docs/dashboard.gif (see "Live dashboard and demo") -->
-> _Placeholder: GIF of the live dashboard during a chaos run (`scripts/demo-dashboard.sh`)._
+![Live dashboard during a chaos round: workers, the sender and the webhook are killed and restarted while jobs keep completing](docs/dashboard.gif)
+
+_The live dashboard during one demo round of 4,000 files, sped up about 2.7×.
+Workers drop out and come back, the sender and webhook go down, and leases are
+reclaimed; at the end, malicious found = alerts accepted. The demo is a
+visualisation, not one of the measured runs above. It was recorded headlessly
+by [`scripts/dev/make-dashboard-gif.sh`](scripts/dev/make-dashboard-gif.sh)._
 
 ## Architecture
 
@@ -261,6 +266,12 @@ bash scripts/demo-dashboard.sh   # starts the stack, counts down, then ~2 minute
 The demo runs one chaos round of 4,000 files (`FILES=…` to change) with the
 same failure injection as the full test, then verifies and prints the checks.
 Its output goes to `results/demo/` (not committed).
+
+`scripts/dev/make-dashboard-gif.sh` regenerates `docs/dashboard.gif` with no
+screen recording. It runs the demo, screenshots the page once a second with
+headless Chromium (Playwright), and builds a palette-optimised GIF with ffmpeg.
+Playwright and ffmpeg are installed into `~/.cache/scan-queue-gif-tools`, never
+into the project.
 
 ### Chaos harness
 

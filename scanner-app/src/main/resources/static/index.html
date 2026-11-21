@@ -173,7 +173,7 @@ async function tick() {
       $('webhook-state').className = 'sub down';
     }
     $('events').innerHTML = s.recent_events.length
-      ? s.recent_events.map(e => `<tr><td class="num">${e.at}</td><td class="ev-${e.kind}">${LABEL[e.kind] || e.kind}</td>`
+      ? s.recent_events.map(e => `<tr><td class="num">${new Date(e.at_ms).toLocaleTimeString()}</td><td class="ev-${e.kind}">${LABEL[e.kind] || e.kind}</td>`
                                  + `<td class="r num">${e.who}</td></tr>`).join('')
       : '<tr><td class="empty">none yet</td></tr>';
     $('clock').textContent = 'updated ' + new Date().toLocaleTimeString();
