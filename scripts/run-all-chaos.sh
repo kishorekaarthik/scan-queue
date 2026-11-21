@@ -16,4 +16,5 @@ bash scripts/log-silence.sh results/final > results/final/log-silence.txt
 java -Xmx256m -jar "$JAR" ablation --runs 3 --files 10000 --out results/ablation > results/ablation/harness.log 2>&1
 java -jar "$JAR" report --out results/final --readme README.md
 java -jar "$JAR" ablation-report --out results/ablation --readme README.md
+java -jar "$JAR" headline --out results/final --readme README.md
 echo "all chaos runs done"

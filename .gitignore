@@ -8,3 +8,4 @@ target/
 /results/trial/
 !/results/*/harness.log
 /results/trial-ablation/
+/results/demo/

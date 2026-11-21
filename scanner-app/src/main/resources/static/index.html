@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scan-queue live</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1c1a; --muted: #6f6b63; --line: #e3e0d8;
+    --queued: #8a8578; --running: #c98a1b; --done: #2f7d4f; --dead: #b23b2e;
+    --accent: #2f5fa7; --warn: #b23b2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --panel: #1d1d1b; --ink: #ecebe6; --muted: #9a968c; --line: #2e2d2a;
+      --queued: #8d897f; --running: #e0a43a; --done: #4fb07a; --dead: #e0675a;
+      --accent: #7aa2e3; --warn: #e0675a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 32px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  .clock { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--line); margin: 18px 0 8px; }
+  .bar div { transition: flex-grow .4s ease; flex-grow: 0; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .tile .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .tile .value { font-size: 30px; font-weight: 600; margin-top: 4px; }
+  .tile .sub { color: var(--muted); font-size: 12px; margin-top: 2px; min-height: 16px; }
+  .tile.safety .value { color: var(--accent); }
+  .tile.bad .value { color: var(--warn); }
+  .dots { display: flex; gap: 6px; margin-top: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); transition: background .3s; }
+  .dot.on { background: var(--done); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .panel h2 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 4px 0; border-top: 1px solid var(--line); }
+  tr:first-child td { border-top: 0; }
+  td.k { color: var(--muted); }
+  td.r { text-align: right; }
+  .ev-FENCED_WRITE { color: var(--accent); font-weight: 600; }
+  .ev-LEASE_EXPIRED, .ev-ALERT_LEASE_EXPIRED { color: var(--running); }
+  .ev-DEAD_LETTERED, .ev-ALERT_DEAD { color: var(--dead); }
+  .down { color: var(--warn); font-weight: 600; }
+  .empty { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>scan-queue <span>live</span></h1>
+    <div class="clock num" id="clock">connecting…</div>
+  </header>
+
+  <div class="bar" id="bar">
+    <div style="background:var(--done)" id="b-DONE"></div>
+    <div style="background:var(--running)" id="b-RUNNING"></div>
+    <div style="background:var(--queued)" id="b-QUEUED"></div>
+    <div style="background:var(--dead)" id="b-DEAD"></div>
+  </div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--done)"></i>done <b class="num" id="l-DONE">–</b></span>
+    <span><i class="sw" style="background:var(--running)"></i>running <b class="num" id="l-RUNNING">–</b></span>
+    <span><i class="sw" style="background:var(--queued)"></i>queued <b class="num" id="l-QUEUED">–</b></span>
+    <span><i class="sw" style="background:var(--dead)"></i>dead <b class="num" id="l-DEAD">–</b></span>
+  </div>
+
+  <div class="grid">
+    <div class="tile">
+      <div class="label">Workers alive</div>
+      <div class="value num" id="workers">–</div>
+      <div class="dots" id="worker-dots"></div>
+    </div>
+    <div class="tile">
+      <div class="label">Sender</div>
+      <div class="value num" id="sender">–</div>
+      <div class="sub" id="sender-sub"></div>
+    </div>
+    <div class="tile">
+      <div class="label">Jobs / sec</div>
+      <div class="value num" id="jps">–</div>
+      <div class="sub">last 5 s</div>
+    </div>
+    <div class="tile">
+      <div class="label">Malicious found</div>
+      <div class="value num" id="malicious">–</div>
+      <div class="sub" id="alerts-pending"></div>
+    </div>
+    <div class="tile">
+      <div class="label">Alerts accepted</div>
+      <div class="value num" id="accepted">–</div>
+      <div class="sub" id="webhook-state"></div>
+    </div>
+    <div class="tile safety">
+      <div class="label">Duplicates rejected</div>
+      <div class="value num" id="dups">–</div>
+      <div class="sub">by webhook dedup</div>
+    </div>
+    <div class="tile safety">
+      <div class="label">Fenced-out writes</div>
+      <div class="value num" id="fenced">–</div>
+      <div class="sub">zombie writes rejected</div>
+    </div>
+    <div class="tile">
+      <div class="label">Leases reclaimed</div>
+      <div class="value num" id="expiries">–</div>
+      <div class="sub" id="alert-expiries"></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Recent crash recoveries</h2>
+      <table id="events"><tr><td class="empty">none yet</td></tr></table>
+    </div>
+    <div class="panel">
+      <h2>What the numbers mean</h2>
+      <table>
+        <tr><td class="k">Leases reclaimed</td><td class="r">a dead or frozen worker's job went back to the queue</td></tr>
+        <tr><td class="k">Fenced-out writes</td><td class="r">a stale owner tried to write; its token was rejected</td></tr>
+        <tr><td class="k">Duplicates rejected</td><td class="r">an alert re-sent after a crash; acted on once</td></tr>
+        <tr><td class="k">Alerts accepted</td><td class="r">should end equal to malicious found</td></tr>
+      </table>
+    </div>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => (n === null || n === undefined) ? '–' : Number(n).toLocaleString('en-US');
+const LABEL = { FENCED_WRITE: 'fenced write', LEASE_EXPIRED: 'job lease reclaimed', ALERT_LEASE_EXPIRED: 'alert lease reclaimed',
+                LEASE_LOST: 'heartbeat lost lease', DEAD_LETTERED: 'job dead-lettered', ALERT_DEAD: 'alert dead' };
+
+async function tick() {
+  try {
+    const r = await fetch('/dashboard/stats', { cache: 'no-store' });
+    const s = await r.json();
+    const j = s.jobs, total = j.QUEUED + j.RUNNING + j.DONE + j.DEAD;
+    for (const k of ['DONE', 'RUNNING', 'QUEUED', 'DEAD']) {
+      $('b-' + k).style.flexGrow = total ? j[k] / total : 0;
+      $('l-' + k).textContent = fmt(j[k]);
+    }
+    $('workers').textContent = s.workers_alive;
+    $('worker-dots').innerHTML = Array.from({ length: Math.max(5, s.workers_alive) },
+        (_, i) => `<div class="dot ${i < s.workers_alive ? 'on' : ''}"></div>`).join('');
+    $('sender').textContent = s.senders_alive ? 'up' : 'down';
+    $('sender').parentElement.classList.toggle('bad', !s.senders_alive);
+    $('sender-sub').textContent = fmt(s.alerts_delivered) + ' delivered';
+    $('jps').textContent = Number(s.jobs_per_sec).toFixed(0);
+    $('malicious').textContent = fmt(s.malicious);
+    $('alerts-pending').textContent = fmt(s.alerts_pending) + ' alert(s) waiting in outbox';
+    $('fenced').textContent = fmt(s.fenced_writes);
+    $('expiries').textContent = fmt(s.lease_expiries);
+    $('alert-expiries').textContent = fmt(s.alert_lease_expiries) + ' alert leases too';
+    if (s.webhook) {
+      $('accepted').textContent = fmt(s.webhook.accepted);
+      $('dups').textContent = fmt(s.webhook.duplicates_rejected);
+      $('webhook-state').textContent = 'webhook up';
+      $('webhook-state').className = 'sub';
+    } else {
+      $('webhook-state').textContent = 'webhook down (restarting)';
+      $('webhook-state').className = 'sub down';
+    }
+    $('events').innerHTML = s.recent_events.length
+      ? s.recent_events.map(e => `<tr><td class="num">${e.at}</td><td class="ev-${e.kind}">${LABEL[e.kind] || e.kind}</td>`
+                                 + `<td class="r num">${e.who}</td></tr>`).join('')
+      : '<tr><td class="empty">none yet</td></tr>';
+    $('clock').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    $('clock').textContent = 'API unreachable, retrying…';
+  }
+}
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

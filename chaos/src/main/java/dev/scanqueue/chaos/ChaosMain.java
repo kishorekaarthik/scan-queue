@@ -97,6 +97,7 @@ public final class ChaosMain {
         switch (cfg.command()) {
             case "report" -> Report.write(cfg.out(), cfg.readme());
             case "ablation-report" -> Report.writeAblation(cfg.out(), cfg.readme());
+            case "headline" -> Report.writeHeadline(cfg.out(), cfg.readme());
             case "ablation" -> {
                 // Every variant gets the same run numbers, hence the same seeds.
                 for (String v : cfg.variants()) {
