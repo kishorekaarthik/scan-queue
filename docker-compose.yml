@@ -11,6 +11,11 @@ x-app-env: &app-env
   MINIO_ACCESS_KEY: scanqueue
   MINIO_SECRET_KEY: scanqueue-secret
   MINIO_BUCKET: uploads
+  WEBHOOK_URL: http://webhook:8080/alerts
+  # Phase 5 ablation switches. Always true except in the chaos comparison.
+  SCANQUEUE_ABLATION_FENCING: ${ABLATION_FENCING:-true}
+  SCANQUEUE_ABLATION_OUTBOX: ${ABLATION_OUTBOX:-true}
+  SCANQUEUE_ABLATION_REAPER: ${ABLATION_REAPER:-true}
 
 services:
   postgres:
@@ -90,6 +95,7 @@ services:
       # Fault injection, off by default (see AlertController).
       WEBHOOK_RESPONSE_DELAY_MILLIS: ${WEBHOOK_RESPONSE_DELAY_MILLIS:-0}
       WEBHOOK_FAIL_AFTER_COMMIT_RATE: ${WEBHOOK_FAIL_AFTER_COMMIT_RATE:-0}
+      WEBHOOK_DEDUP: ${WEBHOOK_DEDUP:-true}   # ablation only
     ports: ["8090:8080"]
     mem_limit: 256m
     depends_on:

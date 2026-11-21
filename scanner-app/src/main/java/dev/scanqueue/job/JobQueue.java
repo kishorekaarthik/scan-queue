@@ -1,5 +1,6 @@
 package dev.scanqueue.job;
 
+import dev.scanqueue.Ablation;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -29,11 +30,13 @@ public class JobQueue {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     private final QueueEvents events;
+    private final Ablation ablation;
 
-    public JobQueue(JdbcTemplate jdbc, TransactionTemplate tx, QueueEvents events) {
+    public JobQueue(JdbcTemplate jdbc, TransactionTemplate tx, QueueEvents events, Ablation ablation) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.events = events;
+        this.ablation = ablation;
     }
 
     /**
@@ -55,7 +58,8 @@ public class JobQueue {
                     attempts         = j.attempts + 1,
                     lease_owner      = ?,
                     lease_expires_at = now() + ? * interval '1 millisecond',
-                    started_at       = coalesce(j.started_at, now())
+                    started_at       = coalesce(j.started_at, now()),
+                    claimed_at       = now()
                 FROM next
                 WHERE j.id = next.id
                 RETURNING j.id, j.object_key, j.attempts, j.lease_owner, j.lease_expires_at
@@ -88,8 +92,8 @@ public class JobQueue {
                     UPDATE scan_job
                     SET status = 'DONE', lease_owner = NULL, lease_expires_at = NULL,
                         finished_at = now(), last_error = NULL
-                    WHERE id = ? AND attempts = ? AND status = 'RUNNING'
-                    """, c.jobId(), c.token());
+                    WHERE id = ? AND (attempts = ? OR NOT ?) AND status = 'RUNNING'
+                    """, c.jobId(), c.token(), ablation.fencing());
             if (updated == 0) {
                 return Outcome.FENCED;
             }
@@ -110,7 +114,7 @@ public class JobQueue {
                 ps.setLong(8, v.scanMillis());
                 return ps;
             });
-            if (v.malicious()) {
+            if (v.malicious() && ablation.outbox()) {
                 // Transactional outbox: the alert exists iff this fenced transaction commits.
                 // The idempotency key is derived from the job, never from the attempt.
                 jdbc.update("""
@@ -151,9 +155,9 @@ public class JobQueue {
                     last_error       = ?,
                     available_at     = now() + attempts * ? * interval '1 millisecond',
                     finished_at      = CASE WHEN attempts >= max_attempts THEN now() END
-                WHERE id = ? AND attempts = ? AND status = 'RUNNING'
+                WHERE id = ? AND (attempts = ? OR NOT ?) AND status = 'RUNNING'
                 RETURNING status
-                """, String.class, truncate(error), backoffMillis, c.jobId(), c.token());
+                """, String.class, truncate(error), backoffMillis, c.jobId(), c.token(), ablation.fencing());
         if (newStatus.isEmpty()) {
             events.record(QueueEvents.Kind.FENCED_WRITE, c, "failure write rejected: token no longer current");
             return Outcome.FENCED;

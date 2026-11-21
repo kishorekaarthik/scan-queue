@@ -38,7 +38,8 @@ public final class ChaosMain {
 
     record Config(String command, int runs, int files, int eicarEvery, int workers, int webhookRestarts,
                   int uploadThreads, long webhookDelayMillis, long seed, String mode, Path out, Path readme,
-                  long memLimitMb, String api, String webhookApi, String dbUrl, String webhookDbUrl) {
+                  long memLimitMb, String api, String webhookApi, String dbUrl, String webhookDbUrl,
+                  List<String> variants) {
 
         static Config parse(String[] a) {
             Map<String, String> o = new LinkedHashMap<>();
@@ -48,7 +49,7 @@ public final class ChaosMain {
                     o.put(a[i].substring(2), a[++i]);
                 }
             }
-            String mode = o.getOrDefault("mode", "final");
+            String mode = o.getOrDefault("mode", cmd.startsWith("ablation") ? "ablation" : "final");
             return new Config(cmd,
                     Integer.parseInt(o.getOrDefault("runs", "10")),
                     Integer.parseInt(o.getOrDefault("files", "10000")),
@@ -65,48 +66,94 @@ public final class ChaosMain {
                     o.getOrDefault("api", "http://localhost:8080"),
                     o.getOrDefault("webhook", "http://localhost:8090"),
                     o.getOrDefault("db", "jdbc:postgresql://localhost:55432/scanqueue"),
-                    o.getOrDefault("webhook-db", "jdbc:postgresql://localhost:55432/webhook?currentSchema=webhook"));
+                    o.getOrDefault("webhook-db", "jdbc:postgresql://localhost:55432/webhook?currentSchema=webhook"),
+                    List.of(o.getOrDefault("variants", o.getOrDefault("variant", cmd.equals("ablation") ? "A,B,C,D,E" : "A")).split(",")));
         }
+    }
+
+    /**
+     * Phase 5 ablation variants: which safety mechanism is removed. Same images, same
+     * seeds, same failure schedule; only these compose environment switches differ.
+     */
+    static final Map<String, Map<String, String>> VARIANTS = new LinkedHashMap<>();
+    static final Map<String, String> VARIANT_NAMES = new LinkedHashMap<>();
+
+    static {
+        variant("A", "final design", Map.of());
+        variant("B", "no fencing (leases kept; writes not token-checked)", Map.of("ABLATION_FENCING", "false"));
+        variant("C", "no outbox (worker POSTs the alert after the verdict)", Map.of("ABLATION_OUTBOX", "false"));
+        variant("D", "no webhook dedup (outbox kept, duplicates accepted)", Map.of("WEBHOOK_DEDUP", "false"));
+        variant("E", "naive (no lease reaper, no fencing, no outbox)",
+                Map.of("ABLATION_REAPER", "false", "ABLATION_FENCING", "false", "ABLATION_OUTBOX", "false"));
+    }
+
+    private static void variant(String id, String name, Map<String, String> env) {
+        VARIANTS.put(id, env);
+        VARIANT_NAMES.put(id, name);
     }
 
     public static void main(String[] args) throws Exception {
         Config cfg = Config.parse(args);
-        if (cfg.command().equals("report")) {
-            Report.write(cfg.out(), cfg.readme());
-            return;
+        switch (cfg.command()) {
+            case "report" -> Report.write(cfg.out(), cfg.readme());
+            case "ablation-report" -> Report.writeAblation(cfg.out(), cfg.readme());
+            case "ablation" -> {
+                // Every variant gets the same run numbers, hence the same seeds.
+                for (String v : cfg.variants()) {
+                    runSeries(cfg, v, cfg.out().resolve(v));
+                }
+                Report.writeAblation(cfg.out(), cfg.readme());
+                log("ablation report written to " + cfg.out().resolve("summary.md"));
+            }
+            default -> {
+                runSeries(cfg, cfg.variants().get(0), cfg.out());
+                Report.write(cfg.out(), cfg.readme());
+                log("report written to " + cfg.out().resolve("summary.md"));
+            }
         }
-        Files.createDirectories(cfg.out());
-        Docker docker = new Docker(Map.of("WEBHOOK_RESPONSE_DELAY_MILLIS", Long.toString(cfg.webhookDelayMillis())));
+    }
 
-        log("bringing up the stack with " + cfg.workers() + " workers");
+    static void runSeries(Config cfg, String variant, Path out) throws Exception {
+        Files.createDirectories(out);
+        Map<String, String> env = new LinkedHashMap<>();
+        // Explicit true/false for every switch, so compose recreates containers on change.
+        env.put("ABLATION_FENCING", "true");
+        env.put("ABLATION_OUTBOX", "true");
+        env.put("ABLATION_REAPER", "true");
+        env.put("WEBHOOK_DEDUP", "true");
+        env.putAll(VARIANTS.get(variant));
+        env.put("WEBHOOK_RESPONSE_DELAY_MILLIS", Long.toString(cfg.webhookDelayMillis()));
+        Docker docker = new Docker(env);
+
+        log("variant " + variant + " (" + VARIANT_NAMES.get(variant) + "): bringing up the stack with "
+                + cfg.workers() + " workers, env " + VARIANTS.get(variant));
+        long t0 = System.nanoTime();
         docker.compose("up", "-d", "--scale", "worker=" + cfg.workers());
         awaitHealthy(cfg);
+        log("stack healthy after " + (System.nanoTime() - t0) / 1_000_000_000 + " s");
         preflightMemory(cfg, docker);
 
         for (int run = 1; run <= cfg.runs(); run++) {
-            Map<String, Object> result = runOnce(cfg, docker, run);
-            Path file = cfg.out().resolve(String.format("run-%02d.json", run));
-            JSON.writeValue(file.toFile(), result);
-            log(String.format("run %d: checks %s | jobs %s verdicts %s malicious %s accepted %s dup-rejected %s fenced %s "
-                            + "lease-exp %s | %s jobs/s p50 %s ms p95 %s ms | worker kills %s (in lease: %s confirmed) "
-                            + "sender kills %s (in flight: %s confirmed) | peak mem %s MB",
-                    run, (Boolean) result.get("all_checks_pass") ? "PASS" : "FAIL",
-                    result.get("jobs"), result.get("verdicts"), result.get("malicious"), result.get("alerts_accepted"),
-                    result.get("duplicates_rejected"), result.get("fenced_writes"), result.get("lease_expiries"),
-                    result.get("throughput_jobs_per_sec"), result.get("latency_p50_ms"), result.get("latency_p95_ms"),
+            Map<String, Object> result = runOnce(cfg, docker, run, variant);
+            JSON.writeValue(out.resolve(String.format("run-%02d.json", run)).toFile(), result);
+            log(String.format("variant %s run %d: checks %s | jobs %s verdicts %s lost %s stuck %s stale-verdicts %s "
+                            + "missing-alerts %s dup-alerts-accepted %s dup-rejected %s fenced %s | %s jobs/s "
+                            + "processing p50 %s p95 %s ms | worker kills %s (%s confirmed) sender kills %s (%s confirmed) | peak %s MB",
+                    variant, run, (Boolean) result.get("all_checks_pass") ? "PASS" : "FAIL",
+                    result.get("jobs"), result.get("verdicts"), result.get("lost_jobs"), result.get("stuck_jobs"),
+                    result.get("duplicate_or_stale_verdict_writes_accepted"), result.get("missing_alerts"),
+                    result.get("duplicate_alerts_accepted"), result.get("duplicates_rejected"), result.get("fenced_writes"),
+                    result.get("throughput_jobs_per_sec"), result.get("processing_p50_ms"), result.get("processing_p95_ms"),
                     result.get("kills_worker"), result.get("kills_worker_holding_lease_confirmed"),
                     result.get("kills_sender"), result.get("kills_sender_alert_in_flight_confirmed"),
                     result.get("memory_peak_mb")));
             if (Boolean.TRUE.equals(result.get("aborted"))) {
-                log("ABORTED: " + result.get("abort_reason"));
-                break;
+                throw new IllegalStateException("ABORTED: " + result.get("abort_reason"));
             }
         }
-        Report.write(cfg.out(), cfg.readme());
-        log("report written to " + cfg.out().resolve("summary.md"));
     }
 
-    static Map<String, Object> runOnce(Config cfg, Docker docker, int run) throws Exception {
+    static Map<String, Object> runOnce(Config cfg, Docker docker, int run, String variant) throws Exception {
         long seed = cfg.seed() + run;
         log("run " + run + ": reset (seed " + seed + ")");
         try (Db q = new Db(cfg.dbUrl(), "scanqueue", "scanqueue");
@@ -131,19 +178,27 @@ public final class ChaosMain {
             // Chaos runs for the whole scan phase. Alerts are produced throughout it (every
             // 20th job), so sender/webhook kills also cover the whole alert stream; alerts
             // interrupted by the last kills are recovered during the drain below.
-            log("run " + run + ": uploads done; chaos continues until every scan job is finished");
-            boolean settled = await(Duration.ofMinutes(15), mem.aborted, () ->
-                    q.count("SELECT count(*) FROM scan_job WHERE status IN ('QUEUED', 'RUNNING')") == 0);
+            // A variant without a reaper leaves jobs RUNNING forever, so both waits also
+            // end after STALL without any progress; what is left is reported as stuck.
+            log("run " + run + ": uploads done; chaos continues until every scan job is finished (or no progress for "
+                    + STALL.toSeconds() + " s)");
+            Cond progressJobs = () -> q.num("SELECT count(*) FROM scan_job WHERE status IN ('DONE', 'DEAD')");
+            boolean settled = awaitOrStall(Duration.ofMinutes(15), STALL, mem.aborted, () ->
+                    q.count("SELECT count(*) FROM scan_job WHERE status IN ('QUEUED', 'RUNNING')") == 0, progressJobs);
             monkey.stop();
             log("run " + run + ": chaos stopped, all containers restarted; draining");
-            boolean drained = await(Duration.ofMinutes(10), mem.aborted, () ->
+            boolean drained = awaitOrStall(Duration.ofMinutes(10), STALL, mem.aborted, () ->
                     q.count("SELECT count(*) FROM scan_job WHERE status IN ('QUEUED', 'RUNNING')") == 0
-                            && q.count("SELECT count(*) FROM alert_outbox WHERE status IN ('PENDING', 'SENDING')") == 0);
+                            && q.count("SELECT count(*) FROM alert_outbox WHERE status IN ('PENDING', 'SENDING')") == 0,
+                    () -> progressJobs.get() + q.num("SELECT count(*) FROM alert_outbox WHERE status IN ('DELIVERED', 'DEAD')")
+                            + w.num("SELECT count(*) FROM delivery_log"));
             mem.stop();
 
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("run", run);
             r.put("mode", cfg.mode());
+            r.put("variant", variant);
+            r.put("variant_name", VARIANT_NAMES.get(variant));
             r.put("seed", seed);
             r.put("started_at", started.toString());
             r.put("wall_clock_sec", Duration.between(started, Instant.now()).toSeconds());
@@ -240,10 +295,43 @@ public final class ChaosMain {
     }
 
     interface Cond {
+        double get() throws Exception;
+    }
+
+    interface Check {
         boolean get() throws Exception;
     }
 
-    static boolean await(Duration timeout, AtomicBoolean abort, Cond c) throws InterruptedException {
+    static final Duration STALL = Duration.ofSeconds(120);
+
+    /** Like await, but also gives up once {@code progress} has not changed for {@code stall}. */
+    static boolean awaitOrStall(Duration timeout, Duration stall, AtomicBoolean abort, Check done, Cond progress)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        double last = Double.NaN;
+        long lastChange = System.nanoTime();
+        while (System.nanoTime() < deadline && !abort.get()) {
+            try {
+                if (done.get()) {
+                    return true;
+                }
+                double p = progress.get();
+                if (p != last) {
+                    last = p;
+                    lastChange = System.nanoTime();
+                } else if (System.nanoTime() - lastChange > stall.toNanos()) {
+                    log("no progress for " + stall.toSeconds() + " s; stopping the wait");
+                    return false;
+                }
+            } catch (Exception e) {
+                // transient; retry
+            }
+            Thread.sleep(500);
+        }
+        return false;
+    }
+
+    static boolean await(Duration timeout, AtomicBoolean abort, Check c) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline && !abort.get()) {
             try {

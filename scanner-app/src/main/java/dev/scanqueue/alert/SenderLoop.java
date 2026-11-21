@@ -1,5 +1,6 @@
 package dev.scanqueue.alert;
 
+import dev.scanqueue.Ablation;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +22,14 @@ public class SenderLoop {
 
     private final OutboxSender sender;
     private final SenderProperties props;
+    private final Ablation ablation;
     private final List<Thread> threads = new ArrayList<>();
     private volatile boolean running = true;
 
-    public SenderLoop(OutboxSender sender, SenderProperties props) {
+    public SenderLoop(OutboxSender sender, SenderProperties props, Ablation ablation) {
         this.sender = sender;
         this.props = props;
+        this.ablation = ablation;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -36,7 +39,9 @@ public class SenderLoop {
             String id = base + "-" + i;
             threads.add(Thread.ofPlatform().name("send-" + i).start(() -> loop(id)));
         }
-        threads.add(Thread.ofPlatform().name("alert-reaper").start(this::reaperLoop));
+        if (ablation.reaper()) {
+            threads.add(Thread.ofPlatform().name("alert-reaper").start(this::reaperLoop));
+        }
         log.info("sender started: id={} concurrency={} lease={}ms webhook={}",
                 base, props.concurrency(), props.leaseMillis(), props.webhookUrl());
     }

@@ -1,5 +1,7 @@
 package dev.scanqueue.worker;
 
+import dev.scanqueue.Ablation;
+import dev.scanqueue.alert.DirectAlerter;
 import dev.scanqueue.job.Claim;
 import dev.scanqueue.job.JobQueue;
 import dev.scanqueue.job.QueueEvents;
@@ -7,6 +9,7 @@ import dev.scanqueue.job.VerdictRecord;
 import dev.scanqueue.scan.ScanEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -33,8 +36,18 @@ public class JobProcessor implements AutoCloseable {
     private final QueueEvents events;
     private final WorkerProperties props;
     private final ScheduledExecutorService heartbeats;
+    private final Ablation ablation;
+    private final DirectAlerter directAlerter;
 
     public JobProcessor(JobQueue queue, ScanEngine engine, QueueEvents events, WorkerProperties props) {
+        this(queue, engine, events, props, Ablation.none(), null);
+    }
+
+    @Autowired
+    public JobProcessor(JobQueue queue, ScanEngine engine, QueueEvents events, WorkerProperties props,
+                        Ablation ablation, DirectAlerter directAlerter) {
+        this.ablation = ablation;
+        this.directAlerter = directAlerter;
         this.queue = queue;
         this.engine = engine;
         this.events = events;
@@ -62,6 +75,9 @@ public class JobProcessor implements AutoCloseable {
             // Always attempt the write, even if a heartbeat saw the lease go:
             // the database, not this process, decides whether we still own the job.
             JobQueue.Outcome outcome = queue.complete(claim, verdict);
+            if (outcome == JobQueue.Outcome.COMMITTED && verdict.malicious() && !ablation.outbox()) {
+                directAlerter.send(claim.jobId(), verdict, claim.workerId());   // ablation: no outbox
+            }
             if (outcome == JobQueue.Outcome.COMMITTED) {
                 log.debug("job {} token {} -> {}", claim.jobId(), claim.token(), verdict.malicious() ? "MALICIOUS" : "CLEAN");
             }

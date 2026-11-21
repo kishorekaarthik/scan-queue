@@ -23,6 +23,7 @@ server:
 webhook:
   response-delay-millis: ${WEBHOOK_RESPONSE_DELAY_MILLIS:0}
   fail-after-commit-rate: ${WEBHOOK_FAIL_AFTER_COMMIT_RATE:0}
+  dedup: ${WEBHOOK_DEDUP:true}           # ablation only: false = accept every copy
 
 management:
   endpoints:

@@ -47,6 +47,7 @@ class QueueSemanticsTest extends IntegrationTestBase {
     static final YaraRunner NO_MATCH = (file, cancelled) -> List.of();
 
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.springframework.transaction.support.TransactionTemplate tx;
     @Autowired JobQueue queue;
     @Autowired JobRepository jobs;
     @Autowired QueueEvents events;
@@ -177,6 +178,27 @@ class QueueSemanticsTest extends IntegrationTestBase {
         assertThat(fencedWorker).isEqualTo("worker-A");
         // A's (wrong) MALICIOUS verdict was fenced out: it created no outbox row.
         assertThat(outboxRows()).isZero();
+    }
+
+    /**
+     * Ablation B switch check: with the token check removed, a zombie that writes while
+     * the job is RUNNING under its new owner wins, and the rightful owner is rejected.
+     */
+    @Test
+    void withFencingSwitchedOffTheZombieOverwritesTheNewOwner() throws Exception {
+        JobQueue unfenced = new JobQueue(jdbc, tx, events, new dev.scanqueue.Ablation(false, true, true));
+        UUID id = newJob("no-fence", 5);
+        Claim zombie = unfenced.claim("worker-A", 300).orElseThrow();
+        Thread.sleep(700);
+        unfenced.reapExpiredLeases(100);
+        Claim fresh = unfenced.claim("worker-B", 30_000).orElseThrow();
+
+        assertThat(unfenced.complete(zombie, verdict("aaaa", false))).isEqualTo(JobQueue.Outcome.COMMITTED);  // stale write wins
+        assertThat(unfenced.complete(fresh, verdict("bbbb", false))).isEqualTo(JobQueue.Outcome.FENCED);      // owner loses
+
+        assertThat(jdbc.queryForMap("SELECT worker_id, claim_token FROM scan_verdict WHERE job_id = ?", id))
+                .containsEntry("worker_id", "worker-A").containsEntry("claim_token", 1);
+        assertThat(jobs.find(id).orElseThrow().attempts()).isEqualTo(2);
     }
 
     /** Zombie and winner both find the file malicious: still exactly one alert, from the winner's transaction. */

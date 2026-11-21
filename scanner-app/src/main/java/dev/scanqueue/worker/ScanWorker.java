@@ -1,5 +1,6 @@
 package dev.scanqueue.worker;
 
+import dev.scanqueue.Ablation;
 import dev.scanqueue.job.JobQueue;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -23,13 +24,15 @@ public class ScanWorker {
     private final JobProcessor processor;
     private final JobQueue queue;
     private final WorkerProperties props;
+    private final Ablation ablation;
     private final List<Thread> threads = new ArrayList<>();
     private volatile boolean running = true;
 
-    public ScanWorker(JobProcessor processor, JobQueue queue, WorkerProperties props) {
+    public ScanWorker(JobProcessor processor, JobQueue queue, WorkerProperties props, Ablation ablation) {
         this.processor = processor;
         this.queue = queue;
         this.props = props;
+        this.ablation = ablation;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -39,7 +42,11 @@ public class ScanWorker {
             String id = base + "-" + i;
             threads.add(Thread.ofPlatform().name("claim-" + i).start(() -> claimLoop(id)));
         }
-        threads.add(Thread.ofPlatform().name("reaper").start(this::reaperLoop));
+        if (ablation.reaper()) {
+            threads.add(Thread.ofPlatform().name("reaper").start(this::reaperLoop));
+        } else {
+            log.warn("ABLATION: lease reaper disabled; RUNNING jobs of dead workers never return to the queue");
+        }
         log.info("worker started: id={} concurrency={} lease={}ms heartbeat={}ms",
                 base, props.concurrency(), props.leaseMillis(), props.heartbeatMillis());
     }

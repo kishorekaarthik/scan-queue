@@ -97,7 +97,8 @@ public class OutboxSender {
                 SET status           = 'SENDING',
                     attempts         = o.attempts + 1,
                     lease_owner      = ?,
-                    lease_expires_at = now() + ? * interval '1 millisecond'
+                    lease_expires_at = now() + ? * interval '1 millisecond',
+                    claimed_at       = now()
                 FROM next
                 WHERE o.id = next.id
                 RETURNING o.id, o.job_id, o.idempotency_key, o.payload::text AS payload, o.attempts, o.lease_owner

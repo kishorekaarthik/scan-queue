@@ -1,0 +1,149 @@
+[11:21:31] variant A (final design): bringing up the stack with 5 workers, env {}
+[11:21:32] stack healthy after 1 s
+[11:21:37] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1413 MB
+[11:21:37] run 1: reset (seed 20261121)
+[11:21:38] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[11:21:54] pause worker 753957e962d4: frozen for 13000 ms holding 2 lease(s)
+[11:22:19] pause sender 727f3f6cb55c: frozen for 18000 ms holding 2 lease(s)
+[11:22:31] pause worker 0920de2cea3d: frozen for 13000 ms holding 2 lease(s)
+[11:23:20] run 1: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:25:12] run 1: chaos stopped, all containers restarted; draining
+[11:25:54] variant A run 1: checks PASS | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 12 fenced 3 | 48.1 jobs/s processing p50 44.0 p95 91.0 ms | worker kills 53 (51 confirmed) sender kills 15 (14 confirmed) | peak 1434 MB
+[11:25:54] run 2: reset (seed 20261122)
+[11:25:55] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[11:26:19] pause worker f651501f2a4a: frozen for 13000 ms holding 2 lease(s)
+[11:26:46] pause sender 727f3f6cb55c: frozen for 18000 ms holding 1 lease(s)
+[11:26:58] docker pause 0920de2cea3d failed: [docker, pause, 0920de2cea3dcaa97ed40d2bf33bf4d6b3b9295056a699a3a6563a3fe13c0c5d] exited 1: Error response from daemon: container 0920de2cea3dcaa97ed40d2bf33bf4d6b3b9295056a699a3a6563a3fe13c0c5d is not running
+[11:26:58] pause worker 0920de2cea3d: skipped (no live lease within 5 s, or pause failed)
+[11:27:33] run 2: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:30:12] run 2: chaos stopped, all containers restarted; draining
+[11:30:56] variant A run 2: checks PASS | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 16 fenced 2 | 39.1 jobs/s processing p50 43.0 p95 103.0 ms | worker kills 66 (66 confirmed) sender kills 16 (16 confirmed) | peak 1436 MB
+[11:30:56] run 3: reset (seed 20261123)
+[11:30:56] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[11:31:11] docker pause f651501f2a4a failed: [docker, pause, f651501f2a4a11cd8b9e632ae3bbc581079a2bded4d3566d1cf931e519f7c6e6] exited 1: Error response from daemon: container f651501f2a4a11cd8b9e632ae3bbc581079a2bded4d3566d1cf931e519f7c6e6 is not running
+[11:31:11] pause worker f651501f2a4a: skipped (no live lease within 5 s, or pause failed)
+[11:31:37] pause sender 727f3f6cb55c: frozen for 18000 ms holding 2 lease(s)
+[11:31:54] pause worker f651501f2a4a: frozen for 13000 ms holding 2 lease(s)
+[11:32:44] run 3: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:35:19] run 3: chaos stopped, all containers restarted; draining
+[11:36:12] variant A run 3: checks PASS | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 8 fenced 0 | 38.5 jobs/s processing p50 40.0 p95 108.0 ms | worker kills 62 (60 confirmed) sender kills 17 (17 confirmed) | peak 1435 MB
+[11:36:12] variant B (no fencing (leases kept; writes not token-checked)): bringing up the stack with 5 workers, env {ABLATION_FENCING=false}
+[11:36:31] stack healthy after 19 s
+[11:36:35] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1296 MB
+[11:36:35] run 1: reset (seed 20261121)
+[11:36:35] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[11:37:04] pause worker 2d8c20661aea: skipped (no live lease within 5 s, or pause failed)
+[11:37:25] pause sender 266b8ce7d8c5: frozen for 18000 ms holding 0 lease(s)
+[11:37:39] pause worker 01d46d2f241c: frozen for 13000 ms holding 1 lease(s)
+[11:38:26] run 1: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:40:50] run 1: chaos stopped, all containers restarted; draining
+[11:41:37] variant B run 1: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 1 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 16 fenced 0 | 39.8 jobs/s processing p50 41.0 p95 111.0 ms | worker kills 58 (56 confirmed) sender kills 16 (16 confirmed) | peak 1353 MB
+[11:41:37] run 2: reset (seed 20261122)
+[11:41:38] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[11:41:56] pause worker 73db484fe102: frozen for 13000 ms holding 2 lease(s)
+[11:42:13] pause sender 266b8ce7d8c5: frozen for 18000 ms holding 1 lease(s)
+[11:42:27] pause worker f0baed2a905c: frozen for 13000 ms holding 2 lease(s)
+[11:43:22] run 2: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:46:56] run 2: chaos stopped, all containers restarted; draining
+[11:47:50] variant B run 2: checks PASS | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 9 fenced 3 | 32.0 jobs/s processing p50 55.0 p95 119.0 ms | worker kills 68 (66 confirmed) sender kills 19 (19 confirmed) | peak 1373 MB
+[11:47:50] run 3: reset (seed 20261123)
+[11:47:52] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[11:48:06] pause worker 01d46d2f241c: frozen for 13000 ms holding 2 lease(s)
+[11:48:34] pause sender 266b8ce7d8c5: frozen for 18000 ms holding 2 lease(s)
+[11:48:57] pause worker 73db484fe102: frozen for 13000 ms holding 2 lease(s)
+[11:50:00] run 3: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[11:53:48] run 3: chaos stopped, all containers restarted; draining
+[11:54:28] variant B run 3: checks PASS | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 0 dup-rejected 13 fenced 6 | 28.3 jobs/s processing p50 57.0 p95 122.0 ms | worker kills 82 (79 confirmed) sender kills 20 (19 confirmed) | peak 1379 MB
+[11:54:28] variant C (no outbox (worker POSTs the alert after the verdict)): bringing up the stack with 5 workers, env {ABLATION_OUTBOX=false}
+[11:54:44] stack healthy after 16 s
+[11:54:48] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1316 MB
+[11:54:48] run 1: reset (seed 20261121)
+[11:54:49] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[11:55:16] pause worker 61e6386a02ae: frozen for 13000 ms holding 1 lease(s)
+[11:55:38] pause sender 029da491eceb: frozen for 18000 ms holding 1 lease(s)
+[11:56:01] pause worker 89798b9022c3: frozen for 13000 ms holding 1 lease(s)
+[11:56:56] run 1: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:00:01] run 1: chaos stopped, all containers restarted; draining
+[12:00:02] variant C run 1: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 36 dup-alerts-accepted 0 dup-rejected 1 fenced 1 | 32.5 jobs/s processing p50 48.0 p95 108.0 ms | worker kills 72 (67 confirmed) sender kills 0 (0 confirmed) | peak 1364 MB
+[12:00:02] run 2: reset (seed 20261122)
+[12:00:03] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[12:00:21] pause worker 89798b9022c3: frozen for 13000 ms holding 1 lease(s)
+[12:00:40] pause sender 029da491eceb: frozen for 18000 ms holding 1 lease(s)
+[12:01:05] docker pause 61e6386a02ae failed: [docker, pause, 61e6386a02ae5011d01aad1ec145622041ed914e4ae0fbacb9c79c4370ef1be6] exited 1: Error response from daemon: container 61e6386a02ae5011d01aad1ec145622041ed914e4ae0fbacb9c79c4370ef1be6 is not running
+[12:01:05] pause worker 61e6386a02ae: frozen for 13000 ms holding 1 lease(s)
+[12:02:08] run 2: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:04:46] run 2: chaos stopped, all containers restarted; draining
+[12:04:46] variant C run 2: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 33 dup-alerts-accepted 0 dup-rejected 0 fenced 0 | 35.5 jobs/s processing p50 45.0 p95 105.0 ms | worker kills 63 (60 confirmed) sender kills 0 (0 confirmed) | peak 1359 MB
+[12:04:46] run 3: reset (seed 20261123)
+[12:04:47] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[12:05:02] pause worker 89798b9022c3: frozen for 13000 ms holding 1 lease(s)
+[12:05:25] pause sender 029da491eceb: skipped (no live lease within 5 s, or pause failed)
+[12:05:49] pause worker 6e275a9d9b6d: frozen for 13000 ms holding 2 lease(s)
+[12:06:32] run 3: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:09:32] run 3: chaos stopped, all containers restarted; draining
+[12:09:32] variant C run 3: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 18 dup-alerts-accepted 0 dup-rejected 0 fenced 3 | 35.7 jobs/s processing p50 42.0 p95 91.0 ms | worker kills 72 (67 confirmed) sender kills 0 (0 confirmed) | peak 1381 MB
+[12:09:32] variant D (no webhook dedup (outbox kept, duplicates accepted)): bringing up the stack with 5 workers, env {WEBHOOK_DEDUP=false}
+[12:09:51] stack healthy after 18 s
+[12:09:55] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1311 MB
+[12:09:55] run 1: reset (seed 20261121)
+[12:09:56] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[12:10:19] docker pause 06b0c902edda failed: [docker, pause, 06b0c902eddabf8406c44f0e483ed669b2b38460de9072b9b5795df3601cced7] exited 1: Error response from daemon: container 06b0c902eddabf8406c44f0e483ed669b2b38460de9072b9b5795df3601cced7 is not running
+[12:10:19] pause worker 06b0c902edda: frozen for 13000 ms holding 2 lease(s)
+[12:10:43] pause sender 686be209cda2: frozen for 18000 ms holding 2 lease(s)
+[12:11:04] pause worker afb1293d9261: frozen for 13000 ms holding 1 lease(s)
+[12:11:58] run 1: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:15:34] run 1: chaos stopped, all containers restarted; draining
+[12:16:15] variant D run 1: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 18 dup-rejected 0 fenced 2 | 30.0 jobs/s processing p50 50.0 p95 112.0 ms | worker kills 85 (84 confirmed) sender kills 20 (19 confirmed) | peak 1366 MB
+[12:16:15] run 2: reset (seed 20261122)
+[12:16:16] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[12:16:38] pause worker afb1293d9261: frozen for 13000 ms holding 2 lease(s)
+[12:16:54] pause sender 686be209cda2: frozen for 18000 ms holding 1 lease(s)
+[12:17:19] docker pause 649dfb535331 failed: [docker, pause, 649dfb53533149e6f056a9f8a3407f92a2886bb935f7adbf283a4ca3eef301c3] exited 1: Error response from daemon: container 649dfb53533149e6f056a9f8a3407f92a2886bb935f7adbf283a4ca3eef301c3 is not running
+[12:17:19] pause worker 649dfb535331: frozen for 13000 ms holding 2 lease(s)
+[12:18:14] run 2: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:21:16] run 2: chaos stopped, all containers restarted; draining
+[12:22:07] variant D run 2: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 13 dup-rejected 0 fenced 2 | 33.9 jobs/s processing p50 49.0 p95 109.0 ms | worker kills 78 (74 confirmed) sender kills 19 (19 confirmed) | peak 1398 MB
+[12:22:07] run 3: reset (seed 20261123)
+[12:22:08] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[12:22:23] pause worker 06b0c902edda: frozen for 13000 ms holding 2 lease(s)
+[12:22:52] pause sender 686be209cda2: frozen for 18000 ms holding 2 lease(s)
+[12:23:09] pause worker 649dfb535331: frozen for 13000 ms holding 2 lease(s)
+[12:24:06] run 3: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:27:04] run 3: chaos stopped, all containers restarted; draining
+[12:27:49] variant D run 3: checks FAIL | jobs 10000 verdicts 10000 lost 0 stuck 0 stale-verdicts 0 missing-alerts 0 dup-alerts-accepted 15 dup-rejected 0 fenced 6 | 34.3 jobs/s processing p50 51.0 p95 109.0 ms | worker kills 71 (71 confirmed) sender kills 18 (18 confirmed) | peak 1371 MB
+[12:27:49] variant E (naive (no lease reaper, no fencing, no outbox)): bringing up the stack with 5 workers, env {ABLATION_FENCING=false, ABLATION_REAPER=false, ABLATION_OUTBOX=false}
+[12:28:08] stack healthy after 19 s
+[12:28:12] memory preflight: 10 containers, mem_limit sum 2844 MB + harness <= 356 MB = 3200 MB (budget 4096 MB); current container use 1309 MB
+[12:28:12] run 1: reset (seed 20261121)
+[12:28:13] run 1: uploading 10000 files (every 20th is EICAR), chaos on
+[12:28:39] pause worker 9456f2ae8dfa: frozen for 13000 ms holding 2 lease(s)
+[12:29:01] pause sender 0845f5191880: frozen for 18000 ms holding 1 lease(s)
+[12:29:17] docker pause b4f556ebd3b6 failed: [docker, pause, b4f556ebd3b650583268570061efacea677431c8ef9353076d6a908df69b6c9b] exited 1: Error response from daemon: container b4f556ebd3b650583268570061efacea677431c8ef9353076d6a908df69b6c9b is not running
+[12:29:17] pause worker b4f556ebd3b6: frozen for 13000 ms holding 2 lease(s)
+[12:29:58] run 1: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:34:47] no progress for 120 s; stopping the wait
+[12:34:49] run 1: chaos stopped, all containers restarted; draining
+[12:36:50] no progress for 120 s; stopping the wait
+[12:36:50] variant E run 1: checks FAIL | jobs 10000 verdicts 9888 lost 112 stuck 112 stale-verdicts 0 missing-alerts 32 dup-alerts-accepted 0 dup-rejected 0 fenced 0 | 36.2 jobs/s processing p50 42.0 p95 94.0 ms | worker kills 72 (0 confirmed) sender kills 0 (0 confirmed) | peak 1378 MB
+[12:36:50] run 2: reset (seed 20261122)
+[12:36:51] run 2: uploading 10000 files (every 20th is EICAR), chaos on
+[12:37:14] pause worker b4f556ebd3b6: skipped (no live lease within 5 s, or pause failed)
+[12:37:40] pause sender 0845f5191880: frozen for 18000 ms holding 1 lease(s)
+[12:37:54] pause worker b4f556ebd3b6: frozen for 13000 ms holding 1 lease(s)
+[12:38:28] run 2: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:42:43] no progress for 120 s; stopping the wait
+[12:42:46] run 2: chaos stopped, all containers restarted; draining
+[12:44:46] no progress for 120 s; stopping the wait
+[12:44:48] variant E run 2: checks FAIL | jobs 10000 verdicts 9913 lost 87 stuck 87 stale-verdicts 0 missing-alerts 48 dup-alerts-accepted 0 dup-rejected 0 fenced 0 | 42.9 jobs/s processing p50 42.0 p95 87.0 ms | worker kills 58 (0 confirmed) sender kills 0 (0 confirmed) | peak 1383 MB
+[12:44:48] run 3: reset (seed 20261123)
+[12:44:49] run 3: uploading 10000 files (every 20th is EICAR), chaos on
+[12:45:03] docker pause 15264f58e272 failed: [docker, pause, 15264f58e272cc5accb9b0379f2e50319cdf55c915a565a1dda2eb966420e7a2] exited 1: Error response from daemon: container 15264f58e272cc5accb9b0379f2e50319cdf55c915a565a1dda2eb966420e7a2 is not running
+[12:45:03] pause worker 15264f58e272: frozen for 13000 ms holding 1 lease(s)
+[12:45:30] pause sender 0845f5191880: frozen for 18000 ms holding 0 lease(s)
+[12:45:44] pause worker 15264f58e272: frozen for 13000 ms holding 1 lease(s)
+[12:46:29] run 3: uploads done; chaos continues until every scan job is finished (or no progress for 120 s)
+[12:50:51] no progress for 120 s; stopping the wait
+[12:50:52] run 3: chaos stopped, all containers restarted; draining
+[12:52:53] no progress for 120 s; stopping the wait
+[12:52:53] variant E run 3: checks FAIL | jobs 10000 verdicts 9907 lost 93 stuck 93 stale-verdicts 0 missing-alerts 35 dup-alerts-accepted 0 dup-rejected 0 fenced 0 | 41.0 jobs/s processing p50 41.0 p95 88.0 ms | worker kills 64 (0 confirmed) sender kills 0 (0 confirmed) | peak 1394 MB
+[12:52:53] ablation report written to results\ablation\summary.md

@@ -29,10 +29,13 @@ public class AlertController {
     private final Counter duplicates;
     private final long responseDelayMillis;
     private final double failAfterCommitRate;
+    private final boolean dedup;
 
     public AlertController(JdbcTemplate jdbc, TransactionTemplate tx, MeterRegistry registry,
                            @Value("${webhook.response-delay-millis:0}") long responseDelayMillis,
-                           @Value("${webhook.fail-after-commit-rate:0}") double failAfterCommitRate) {
+                           @Value("${webhook.fail-after-commit-rate:0}") double failAfterCommitRate,
+                           @Value("${webhook.dedup:true}") boolean dedup) {
+        this.dedup = dedup;
         this.jdbc = jdbc;
         this.tx = tx;
         this.accepted = Counter.builder("webhook.deliveries").tag("outcome", "ACCEPTED").register(registry);
@@ -64,9 +67,11 @@ public class AlertController {
                         WHERE idempotency_key = ?
                         """, key);
             }
+            // Ablation (webhook.dedup=false): a receiver without dedup acts on every copy.
+            boolean accepted = inserted || !dedup;
             jdbc.update("INSERT INTO delivery_log (idempotency_key, outcome) VALUES (?, ?)",
-                    key, inserted ? "ACCEPTED" : "DUPLICATE_REJECTED");
-            return inserted;
+                    key, accepted ? "ACCEPTED" : "DUPLICATE_REJECTED");
+            return accepted;
         }));
         (first ? accepted : duplicates).increment();
         log.info("{} {}", first ? "ACCEPTED" : "DUPLICATE_REJECTED", key);

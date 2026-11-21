@@ -57,12 +57,32 @@ final class Report {
                 {"alert lease expiries", "alert_lease_expiries"}, {"dead jobs", "dead_jobs"}, {"dead alerts", "dead_alerts"},
                 {"all checks", "all_checks_pass"}}, true);
 
-        s.append("\n**Performance and recovery** (latency = upload to verdict; recovery = kill to last interrupted item finished elsewhere; DB clock)\n\n");
+        s.append("\n**Latency** (headline: processing = final claim to committed verdict. Queue wait = upload to first claim. "
+                + "End to end = upload to verdict, which also includes time lost to crashes. DB clock)\n\n");
         table(s, runs, new String[][]{
-                {"jobs/sec", "throughput_jobs_per_sec"}, {"p50 latency ms", "latency_p50_ms"},
-                {"p95 latency ms", "latency_p95_ms"}, {"worker recovery p50 ms", "recovery_worker_p50_ms"},
-                {"worker recovery max ms", "recovery_worker_max_ms"}, {"alert recovery p50 ms", "recovery_alert_p50_ms"},
-                {"alert recovery max ms", "recovery_alert_max_ms"}, {"peak container MB", "memory_peak_mb"}}, false);
+                {"processing p50 ms", "processing_p50_ms"}, {"processing p95 ms", "processing_p95_ms"},
+                {"queue wait p50 ms", "queue_wait_p50_ms"}, {"queue wait p95 ms", "queue_wait_p95_ms"},
+                {"end-to-end p50 ms", "end_to_end_p50_ms"}, {"end-to-end p95 ms", "end_to_end_p95_ms"},
+                {"jobs re-claimed after a crash/freeze", "jobs_reclaimed"},
+                {"their first-to-final claim delay p50 ms", "crash_delay_p50_ms"},
+                {"jobs/sec", "throughput_jobs_per_sec"}, {"peak container MB", "memory_peak_mb"}}, false);
+
+        s.append("\n**Recovery** (per kill: from the SIGKILL to the last item it interrupted being finished elsewhere. "
+                + "Segments: medians over interrupted items that were not interrupted again)\n\n");
+        table(s, runs, new String[][]{
+                {"worker recovery p50 ms", "recovery_worker_p50_ms"}, {"worker recovery max ms", "recovery_worker_max_ms"},
+                {"job: kill -> lease expiry", "/recovery_worker_segments/p50_kill_to_lease_expiry_ms"},
+                {"job: lease expiry -> reaped", "/recovery_worker_segments/p50_lease_expiry_to_reaped_ms"},
+                {"job: reaped -> re-claimed", "/recovery_worker_segments/p50_reaped_to_reclaimed_ms"},
+                {"job: re-claimed -> verdict", "/recovery_worker_segments/p50_reclaimed_to_done_ms"},
+                {"alert recovery p50 ms", "recovery_alert_p50_ms"}, {"alert recovery max ms", "recovery_alert_max_ms"},
+                {"alert: kill -> lease expiry", "/recovery_alert_segments/p50_kill_to_lease_expiry_ms"},
+                {"alert: lease expiry -> reaped", "/recovery_alert_segments/p50_lease_expiry_to_reaped_ms"},
+                {"alert: reaped -> re-claimed", "/recovery_alert_segments/p50_reaped_to_reclaimed_ms"},
+                {"alert: re-claimed -> delivered", "/recovery_alert_segments/p50_reclaimed_to_done_ms"},
+                {"alerts interrupted", "/recovery_alert_segments/items"},
+                {"...of which interrupted again", "/recovery_alert_segments/items_interrupted_again"},
+                {"...their kill -> delivered p50 ms", "/recovery_alert_segments/p50_total_interrupted_again_ms"}}, false);
 
         s.append("\n**Chaos** (observed = lease seen held in the DB right before SIGKILL; confirmed = that container's lease later expired, i.e. the kill interrupted real work; "
                 + "pauses = `docker pause` for lease + 3 s while holding a lease, then unpause: the zombie whose late write must be fenced)\n\n");
@@ -125,7 +145,7 @@ final class Report {
             List<Double> vals = new ArrayList<>();
             boolean bool = false;
             for (JsonNode r : runs) {
-                JsonNode v = r.path(row[1]);
+                JsonNode v = field(r, row[1]);
                 if (v.isBoolean()) {
                     bool = true;
                     s.append(v.asBoolean() ? " PASS" : " **FAIL**").append(" |");
@@ -135,7 +155,7 @@ final class Report {
                 }
             }
             if (bool) {
-                long pass = runs.stream().filter(r -> r.path(row[1]).asBoolean()).count();
+                long pass = runs.stream().filter(r -> field(r, row[1]).asBoolean()).count();
                 s.append(' ').append(pass).append('/').append(runs.size()).append(" |\n");
             } else if (vals.isEmpty()) {
                 s.append(" – |\n");
@@ -147,6 +167,102 @@ final class Report {
                         .append(" / ").append(num(sorted.get(sorted.size() - 1))).append(" |\n");
             }
         }
+    }
+
+    /** results/ablation/{A..E}/run-*.json -> results/ablation/summary.md (+ README block chaos:ablation). */
+    static void writeAblation(Path dir, Path readme) throws IOException {
+        Map<String, List<JsonNode>> byVariant = new LinkedHashMap<>();
+        for (String v : ChaosMain.VARIANTS.keySet()) {
+            Path d = dir.resolve(v);
+            if (!Files.isDirectory(d)) continue;
+            List<JsonNode> runs = new ArrayList<>();
+            try (Stream<Path> files = Files.list(d)) {
+                for (Path p : files.filter(f -> f.getFileName().toString().matches("run-\\d+\\.json")).sorted().toList()) {
+                    runs.add(ChaosMain.JSON.readTree(p.toFile()));
+                }
+            }
+            if (!runs.isEmpty()) byVariant.put(v, runs);
+        }
+        if (byVariant.isEmpty()) throw new IllegalStateException("no variant results under " + dir);
+
+        StringBuilder s = new StringBuilder();
+        JsonNode cfg = byVariant.values().iterator().next().get(0).path("config");
+        s.append("_Generated by `java -jar chaos/target/chaos.jar ablation-report --out ").append(dir.toString().replace('\\', '/'))
+                .append("`. Each variant: ").append(byVariant.values().iterator().next().size()).append(" runs x ")
+                .append(cfg.path("files").asText()).append(" files, same seeds and failure schedule. Cells: total (run 1 / run 2 / run 3)._\n\n");
+
+        String[][] outcomes = {
+                {"lost jobs", "lost_jobs"}, {"stuck jobs", "stuck_jobs"},
+                {"duplicate/stale verdict writes accepted", "duplicate_or_stale_verdict_writes_accepted"},
+                {"missing alerts", "missing_alerts"}, {"duplicate alerts accepted", "duplicate_alerts_accepted"},
+                {"alerts for clean files", "alerts_for_non_malicious"}};
+        s.append("**What breaks when each mechanism is removed**\n\n| variant |");
+        for (String[] o : outcomes) s.append(' ').append(o[0]).append(" |");
+        s.append(" checks passed |\n|---|");
+        for (int i = 0; i <= outcomes.length; i++) s.append("--:|");
+        s.append('\n');
+        for (var e : byVariant.entrySet()) {
+            s.append("| **").append(e.getKey()).append("** ").append(ChaosMain.VARIANT_NAMES.get(e.getKey())).append(" |");
+            for (String[] o : outcomes) s.append(' ').append(cell(e.getValue(), o[1])).append(" |");
+            long pass = e.getValue().stream().filter(r -> r.path("all_checks_pass").asBoolean()).count();
+            s.append(' ').append(pass).append('/').append(e.getValue().size()).append(" |\n");
+        }
+
+        String[][] work = {
+                {"second scans rejected by fencing", "second_verdict_writes_rejected"},
+                {"duplicates rejected by webhook", "duplicates_rejected"},
+                {"alerts dropped by worker", "alerts_dropped_by_worker"},
+                {"worker kills (confirmed in lease)", "kills_worker_holding_lease_confirmed"},
+                {"sender kills (confirmed in flight)", "kills_sender_alert_in_flight_confirmed"},
+                {"worker pauses", "pauses_worker"}, {"sender pauses", "pauses_sender"},
+                {"webhook restarts", "webhook_restarts"}};
+        s.append("\n**Safety work done and failures injected** (same seeds; the schedule is randomized from the seed but "
+                + "targets depend on live state, so counts differ slightly between variants)\n\n| variant |");
+        for (String[] o : work) s.append(' ').append(o[0]).append(" |");
+        s.append("\n|---|");
+        for (int i = 0; i < work.length; i++) s.append("--:|");
+        s.append('\n');
+        for (var e : byVariant.entrySet()) {
+            s.append("| **").append(e.getKey()).append("** |");
+            for (String[] o : work) s.append(' ').append(cell(e.getValue(), o[1])).append(" |");
+            s.append('\n');
+        }
+
+        s.append("\n**Failed checks**\n\n");
+        boolean any = false;
+        for (var e : byVariant.entrySet()) {
+            for (JsonNode r : e.getValue()) {
+                for (JsonNode c : r.path("checks")) {
+                    if (!c.path("pass").asBoolean()) {
+                        any = true;
+                        s.append("- ").append(e.getKey()).append(" run ").append(r.path("run").asInt()).append(": ")
+                                .append(c.path("name").asText()).append(": ").append(c.path("detail").asText()).append('\n');
+                    }
+                }
+            }
+        }
+        if (!any) s.append("- none\n");
+
+        Files.writeString(dir.resolve("summary.md"), s.toString(), StandardCharsets.UTF_8);
+        if (readme != null) {
+            splice(readme, "ablation", s.toString());
+        }
+    }
+
+    private static String cell(List<JsonNode> runs, String key) {
+        double total = 0;
+        List<String> per = new ArrayList<>();
+        for (JsonNode r : runs) {
+            JsonNode v = field(r, key);
+            per.add(fmt(v));
+            if (v.isNumber()) total += v.asDouble();
+        }
+        return num(total) + " (" + String.join(" / ", per) + ")";
+    }
+
+    /** Plain key, or a JSON pointer (leading slash) into a nested object. */
+    static JsonNode field(JsonNode r, String key) {
+        return key.startsWith("/") ? r.at(key) : r.path(key);
     }
 
     private static String fmt(JsonNode v) {
